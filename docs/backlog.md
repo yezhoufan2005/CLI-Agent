@@ -21,5 +21,5 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | B-COMPACT | P2 | todo | Summarization compaction when elision is not enough | Long-session e2e |
 | B-MCP | P2 | todo | MCP client for external tools (stdio) | Contract test with a toy server |
 | B-PARALLEL | P2 | todo | Run independent read-only tool calls concurrently | Agent test |
-| B-PROC-LIMITS | P1 | todo | Kill processes that escape the shell's process group (setsid/nohup) at timeout; cap the on-disk output spool | Test: `setsid sleep` child is gone after timeout; spool ≤ limit |
+| B-PROC-LIMITS | P1 | done | Kill processes that escape the shell's process group (setsid/nohup) at timeout; cap the on-disk output spool | Test: `setsid sleep` child is gone after timeout; spool ≤ limit |
 | B-REGEX-TIMEOUT | P2 | todo | Bound search_files time for pathological regexes (subprocess or deadline) | Test with `(a+)+$` on a long line returns within N s |

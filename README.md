@@ -57,6 +57,8 @@ Rules refine the mode: `--allow 'run_shell:pytest*'`, `--deny 'run_shell:git pus
 - Writes under `.git/` (hooks, config) always ask, even in `auto` and `auto-edit`, unless an explicit path rule such as `write_file:.git/info/*` allows them.
 - A small built-in guard blocks catastrophic shell commands (`rm -rf ~`, `mkfs`, force-push, …) in every mode.
 
+Each shell command runs with empty stdin, a timeout (default 120 s, max 600 s), and a 50 MB output cap. When it finishes, anything it left running (`&` jobs and, on Linux, `setsid`/`nohup` escapees) is killed, so an agent cannot leave daemons behind.
+
 File tools cannot touch paths outside the workspace (symlinks are resolved first; list/search skip symlinks). Shell commands run with your user's privileges and are **not sandboxed**: the workspace boundary applies only to file tools, and an approved command can read or change anything your user can. Credential-like environment variables (`*TOKEN*`, `*KEY*`, `*SECRET*`, `*_PASS`, `DATABASE_URL`, `SSH_AUTH_SOCK`, …) are removed from the environment of shell commands, and on Linux the agent marks itself non-dumpable so commands cannot read its environment through `/proc`. Credential *files* your user can read (e.g. `~/.aws/credentials`) remain readable to shell commands.
 
 `AGENTS.md` / `CLAUDE.md` in the workspace root are given to the model as project conventions; they cannot change permissions.

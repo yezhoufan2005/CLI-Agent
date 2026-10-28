@@ -3,16 +3,22 @@ and a scrubbed environment so the model's commands cannot read our credentials."
 
 from __future__ import annotations
 
+import contextlib
+import ctypes
 import os
 import re
 import signal
 import subprocess
+import sys
 import tempfile
+import time
 from typing import Any
 
 from cli_agent.tools.base import Effect, ToolContext, ToolError, ToolResult, require_str, truncate
 
 MAX_TIMEOUT = 600.0
+MAX_SPOOL_BYTES = 50_000_000
+POLL_SECONDS = 0.1
 # Environment variables that look like credentials are never passed to commands.
 # Best-effort name denylist: commands run as the user and can still read files the
 # user can read (see README "Permissions").
@@ -36,7 +42,9 @@ class RunShell:
     description = (
         "Run a bash command in the workspace root and return its exit code and combined "
         "stdout/stderr. Commands are non-interactive (stdin is empty). Use for builds, tests, "
-        "git, and other CLI tools. Long output is truncated in the middle."
+        "git, and other CLI tools. Long output is truncated in the middle. Processes the "
+        "command leaves running in the background are killed when it finishes, so start "
+        "and use a server within a single command."
     )
     input_schema: dict[str, Any] = {
         "type": "object",
@@ -60,6 +68,8 @@ class RunShell:
             raise ToolError("timeout must be a positive number")
         timeout = min(float(timeout), MAX_TIMEOUT)
         env = scrubbed_env(ctx.env or dict(os.environ))
+        _enable_subreaper()
+        before = _child_pids()
         # Spool output to a temp file so a chatty command can't exhaust memory via pipes.
         with tempfile.TemporaryFile() as out:
             try:
@@ -74,26 +84,102 @@ class RunShell:
                 )
             except OSError as err:
                 raise ToolError(f"failed to start bash: {err}") from err
-            timed_out = False
             try:
-                code = proc.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                _kill_group(proc)
-                code = proc.wait()
+                code, stopped = _wait(proc, out.fileno(), timeout)
             except KeyboardInterrupt:
                 _kill_group(proc)
-                proc.wait()
+                _reap_orphans(before)
                 raise
+            # Whatever the command left behind (`&` jobs, setsid daemons) goes too.
+            _kill_group(proc)
+            _reap_orphans(before)
             out.seek(0)
             raw = out.read(4_000_000)
         text = truncate(raw.decode("utf-8", errors="replace"))
-        if timed_out:
+        if stopped == "timeout":
             return ToolResult(
                 f"{text}\n[command timed out after {timeout:g}s and was killed]", True
             )
+        if stopped == "output":
+            return ToolResult(
+                f"{text}\n[command produced more than {MAX_SPOOL_BYTES // 1_000_000} MB of "
+                "output and was killed; redirect output to a file or filter it]",
+                True,
+            )
         header = f"exit code: {code}"
         return ToolResult(f"{header}\n{text}" if text else header, is_error=code != 0)
+
+
+def _wait(proc: subprocess.Popen[bytes], out_fd: int, timeout: float) -> tuple[int, str]:
+    """Wait for exit, killing on timeout or runaway output. Returns (code, reason)."""
+    deadline = time.monotonic() + timeout
+    while True:
+        remaining = deadline - time.monotonic()
+        try:
+            return proc.wait(timeout=max(min(POLL_SECONDS, remaining), 0.001)), ""
+        except subprocess.TimeoutExpired:
+            pass
+        if os.fstat(out_fd).st_size > MAX_SPOOL_BYTES:
+            reason = "output"
+        elif time.monotonic() >= deadline:
+            reason = "timeout"
+        else:
+            continue
+        _kill_group(proc)
+        return proc.wait(), reason
+
+
+_PR_SET_CHILD_SUBREAPER = 36
+_subreaper = False
+
+
+def _enable_subreaper() -> None:
+    """On Linux, become a subreaper so orphaned descendants of a command (e.g.
+    after `setsid`) are re-parented to us and can be found and killed."""
+    global _subreaper
+    if _subreaper or not sys.platform.startswith("linux"):
+        return
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        _subreaper = int(libc.prctl(_PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0)) == 0
+    except (OSError, AttributeError):
+        _subreaper = False
+
+
+def _child_pids() -> set[int]:
+    """PIDs whose parent is this process (Linux /proc; empty elsewhere)."""
+    if not _subreaper:
+        return set()
+    me = os.getpid()
+    found = set()
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        try:
+            with open(f"/proc/{entry}/stat", "rb") as fh:
+                stat = fh.read().decode("ascii", "replace")
+        except OSError:
+            continue
+        # Format: pid (comm) state ppid ...; comm may contain spaces or parens.
+        fields = stat[stat.rfind(")") + 2 :].split()
+        if len(fields) > 1 and fields[1] == str(me):
+            found.add(int(entry))
+    return found
+
+
+def _reap_orphans(before: set[int]) -> None:
+    """Kill and reap descendants that escaped the process group and were
+    re-parented to us. Killing one can orphan its own children, so repeat."""
+    for _ in range(10):
+        orphans = _child_pids() - before
+        if not orphans:
+            return
+        for pid in orphans:
+            with contextlib.suppress(OSError):
+                os.kill(pid, signal.SIGKILL)
+        for pid in orphans:
+            with contextlib.suppress(OSError):
+                os.waitpid(pid, 0)
 
 
 def _kill_group(proc: subprocess.Popen[bytes]) -> None:
