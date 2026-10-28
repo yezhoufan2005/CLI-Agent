@@ -4,6 +4,8 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+## 0.2.0 — 2026-10-28
+
 ### Added
 - `--max-session-tokens N` / `max_session_tokens`: stop (exit 3) once a session has used N input+output tokens.
 - Streaming for the OpenAI-compatible provider.
