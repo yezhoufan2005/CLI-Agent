@@ -117,7 +117,14 @@ class OpenAIProvider:
             data = resp.json()
         except ValueError as err:
             raise ProviderError("response was not valid JSON", retryable=True) from err
-        return parse_response(data)
+        try:
+            return parse_response(data)
+        except ProviderError:
+            raise
+        except (TypeError, ValueError, KeyError, AttributeError, IndexError) as err:
+            raise ProviderError(
+                f"malformed response from server ({type(err).__name__})", retryable=True
+            ) from err
 
 
 def to_wire(msg: Message) -> list[dict[str, Any]]:
@@ -161,9 +168,11 @@ def _error_detail(resp: httpx.Response) -> str:
 
 
 def parse_response(data: dict[str, Any]) -> Completion:
+    if not isinstance(data, dict):
+        raise ProviderError("response is not a JSON object", retryable=True)
     choices = data.get("choices")
     if not isinstance(choices, list) or not choices:
-        raise ProviderError(f"response has no choices: {json.dumps(data)[:300]}", retryable=True)
+        raise ProviderError("response has no choices", retryable=True)
     choice = choices[0] or {}
     raw = choice.get("message") or {}
     blocks: list[TextBlock | ToolUseBlock] = []

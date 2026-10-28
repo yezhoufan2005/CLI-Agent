@@ -2,6 +2,35 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — Run 1, session 1: OpenAI provider, observability, sandbox, second review (PRs #10–#15)
+
+- PR #10: OpenAI-compatible provider (`--provider openai`). Verified with contract tests only; the model proxy available here doesn't serve `/chat/completions`.
+- PR #11: `--debug-log` (contains no message content; a CI test checks this with marker strings) and an end-of-run usage line.
+- PR #12: three harder E2E tasks. 10/10 pass on both haiku-4-5 and sonnet-4-6, so the suite still doesn't separate the two models (→ B-BENCH).
+  - CI failed because ruff formatted a fixture repo. Fix: `tests/e2e` excluded from ruff, plus a `.githooks/pre-commit` (run `scripts/setup-dev.sh`) so the static gate runs before every commit.
+- PR #13: REPL driven through a pty in CI.
+  - The macOS hang was the pty buffer filling while the test waited for exit. The test now drains the pty.
+- PR #14: optional bubblewrap sandbox (`--sandbox auto|required`). It can't run in this container (no userns).
+  - Linux CI installs bwrap and sets `CLI_AGENT_REQUIRE_SANDBOX_TESTS=1`. The 5 sandbox tests ran there and passed (163 passed on ubuntu-3.11).
+  - The first CI run caught a wrong test assumption: `/tmp` is a private tmpfs inside the sandbox.
+- PR #15: fixes from the second independent review. 9 findings were reproduced by the reviewer's scripts:
+  1. `git status` at startup ran a `core.fsmonitor` program chosen by the repo, with the API key in its environment. Fixed: fsmonitor is disabled and the environment scrubbed. The regression test fails without the fix (checked).
+  2. Malformed provider responses crashed the CLI with a traceback. Fixed: they now raise a retryable ProviderError for both providers.
+  3. Lone surrogates crashed session save and stdout. Fixed: the session is written as ASCII JSON, and UI output escapes them.
+  4. `_reap_orphans` stopped after 10 rounds. Fixed: it now loops until empty, with a 5 s bound.
+  5. A NaN timeout disabled the timeout. Fixed with an `isfinite` check.
+  6. Output past 4 MB lost its tail. Fixed: the head and tail are kept.
+  7. Server payloads were quoted in errors and the log. Fixed: the error now gives only the size.
+  8. Streamed partial text was duplicated on retry. Fixed: a "[partial response discarded]" marker is printed.
+  9. `--debug-log` on a FIFO hung. Fixed with `O_NONBLOCK` plus a regular-file check.
+
+  Also fixed: bidi and zero-width characters are now escaped in the UI.
+
+  Not fixed (low; recorded):
+  - `_reap_orphans` could kill children of other threads. Latent, since the CLI is single-threaded.
+  - macOS doesn't reap setsid escapees. Documented as Linux-only.
+  - The OpenAI parser synthesizes `call_N` ids.
+
 ## 2026-10-28 — Run 1, session 1: diffs, process limits, more E2E (PRs #5–#8)
 
 - PR #5: tag-driven release workflow + CHANGELOG + `docs/release.md`. It has not run yet; it only runs on a tag push.

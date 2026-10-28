@@ -125,12 +125,25 @@ class AnthropicProvider:
                         data = resp.json()
                     except ValueError as err:
                         raise ProviderError("response was not valid JSON", retryable=True) from err
-                    return parse_response(data)
-                return parse_response(accumulate_stream(_sse_events(resp.iter_lines()), on_text))
+                    return _parse_safely(lambda: parse_response(data))
+                events = _sse_events(resp.iter_lines())
+                return _parse_safely(lambda: parse_response(accumulate_stream(events, on_text)))
         except httpx.TimeoutException as err:
             raise ProviderError(f"request timed out: {err}", retryable=True) from err
         except httpx.TransportError as err:
             raise ProviderError(f"network error: {err}", retryable=True) from err
+
+
+def _parse_safely(parse: Callable[[], Completion]) -> Completion:
+    """Turn any shape error in a server response into a retryable ProviderError."""
+    try:
+        return parse()
+    except ProviderError:
+        raise
+    except (TypeError, ValueError, KeyError, AttributeError, IndexError) as err:
+        raise ProviderError(
+            f"malformed response from server ({type(err).__name__})", retryable=True
+        ) from err
 
 
 def _sse_events(lines: Iterator[str]) -> Iterator[dict[str, Any]]:
@@ -153,9 +166,9 @@ def _decode_event(raw: str) -> dict[str, Any]:
     try:
         event = json.loads(raw)
     except json.JSONDecodeError as err:
-        raise ProviderError(f"malformed stream event: {raw[:200]!r}", retryable=True) from err
+        raise ProviderError(f"malformed stream event ({len(raw)} bytes)", retryable=True) from err
     if not isinstance(event, dict):
-        raise ProviderError(f"malformed stream event: {raw[:200]!r}", retryable=True)
+        raise ProviderError(f"malformed stream event ({len(raw)} bytes)", retryable=True)
     return event
 
 
