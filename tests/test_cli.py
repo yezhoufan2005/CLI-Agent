@@ -256,3 +256,19 @@ def test_undo_subcommand(tmp_path: Path) -> None:
     assert not (tmp_path / "work/made.txt").exists()
     r = run_cli(tmp_path, [], "undo")
     assert "nothing to undo" in r.stdout
+
+
+def test_mcp_tool_used_end_to_end(tmp_path: Path) -> None:
+    server = Path(__file__).parent / "fixtures" / "mcp_echo_server.py"
+    config = (
+        'provider = "fake"\n[mcp_servers.echo]\n'
+        f"command = [{json.dumps(sys.executable)}, {json.dumps(str(server))}]\n"
+    )
+    script = [
+        {"tool_calls": [{"name": "mcp__echo__echo", "input": {"text": "ping"}}]},
+        {"text": "done"},
+    ]
+    r = run_cli(tmp_path, script, "--mode", "auto", "--json", "use echo", config=config)
+    assert r.returncode == 0, r.stderr
+    ends = [json.loads(x) for x in r.stdout.splitlines() if '"tool_end"' in x]
+    assert ends[0]["output"] == "echo: ping"

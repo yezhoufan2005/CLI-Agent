@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from cli_agent.mcp import ServerConfig, parse_server_configs
 from cli_agent.permissions import MODES, Mode
 from cli_agent.sandbox import SANDBOX_MODES
 
@@ -47,6 +48,7 @@ class Config:
     """History budget (~4 chars per token); older tool output is elided past it."""
     sandbox: str = "off"
     sandbox_network: bool = False
+    mcp_servers: list[ServerConfig] = field(default_factory=list)
     source: str = "defaults"
 
     def redacted(self) -> dict[str, Any]:
@@ -65,6 +67,7 @@ class Config:
             "context_chars": self.context_chars,
             "sandbox": self.sandbox,
             "sandbox_network": self.sandbox_network,
+            "mcp_servers": [s.name for s in self.mcp_servers],
             "source": self.source,
         }
 
@@ -96,6 +99,12 @@ def _apply_file(cfg: Config, path: Path) -> None:
                 f"{path}: do not store {key} in the config file; use the environment "
                 "(ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN, or OPENAI_API_KEY)"
             )
+        if key == "mcp_servers":
+            try:
+                cfg.mcp_servers = parse_server_configs(value, str(path))
+            except ValueError as err:
+                raise ConfigError(str(err)) from err
+            continue
         expected = _KEYS.get(key)
         if expected is None:
             raise ConfigError(f"{path}: unknown key {key!r}")

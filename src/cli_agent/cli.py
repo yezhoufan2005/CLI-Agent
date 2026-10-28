@@ -18,6 +18,7 @@ from cli_agent import __version__, log
 from cli_agent.agent import Agent, RunResult
 from cli_agent.checkpoint import Checkpoints
 from cli_agent.config import Config, ConfigError, load_config
+from cli_agent.mcp import start_servers
 from cli_agent.permissions import MODES, PermissionPolicy
 from cli_agent.prompt import build_system_prompt
 from cli_agent.providers.base import Provider, ProviderError
@@ -305,9 +306,15 @@ def main(argv: list[str] | None = None) -> int:
         warning = git_warning(root)
         if warning:
             ui.on_notice(warning)
+    servers, mcp_tools, problems = start_servers(cfg.mcp_servers, str(root))
+    for problem in problems:
+        ui.on_notice(problem)
+    if mcp_tools:
+        names = ", ".join(sorted({t.server.cfg.name for t in mcp_tools}))
+        ui.on_notice(f"MCP: {len(mcp_tools)} tool(s) from {names}")
     agent = Agent(
         provider=provider,
-        tools=default_tools(),
+        tools=[*default_tools(), *mcp_tools],
         policy=policy,
         ctx=ToolContext(
             root=root,
@@ -322,10 +329,14 @@ def main(argv: list[str] | None = None) -> int:
         max_tokens=cfg.max_tokens,
         save=store.save,
     )
-    if interactive_repl:
-        return _repl(agent, session, ui)
-    result = agent.run(session, prompt)
-    return _finish(result, session, ui)
+    try:
+        if interactive_repl:
+            return _repl(agent, session, ui)
+        result = agent.run(session, prompt)
+        return _finish(result, session, ui)
+    finally:
+        for server in servers:
+            server.close()
 
 
 def _open_session(
