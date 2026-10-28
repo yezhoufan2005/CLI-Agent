@@ -12,7 +12,7 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | B-CLAUDE | P0 | done | Root `CLAUDE.md` for contributors/agents | File exists, < 60 lines |
 | B-RELEASE | P0 | todo | Release workflow: tag `v*` → build wheel/sdist, GitHub Release with notes; CHANGELOG | Dry-run release on a tag; install from release asset works |
 | B-GIT-SAFETY | P1 | todo | Warn at start when workspace is not a git repo or has uncommitted changes in write modes | CLI test |
-| B-DIFF | P1 | todo | Show a unified diff of each edit/write in the terminal UI (and in approval prompts) | UI unit test |
+| B-DIFF | P1 | done | Show a unified diff of each edit/write in the terminal UI (and in approval prompts) | UI unit test |
 | B-E2E-MORE | P1 | todo | More E2E tasks: multi-file change, recover from failing command, large file paging, denied action | e2e passes ≥ 90% over 2 runs |
 | B-OPENAI | P1 | todo | OpenAI-compatible Chat Completions provider | Contract tests; e2e via a compatible endpoint if available |
 | B-LOG | P1 | todo | `--debug` log file with request timing, retries, tool durations (no secrets, no content by default) | Test that log has no secret values |

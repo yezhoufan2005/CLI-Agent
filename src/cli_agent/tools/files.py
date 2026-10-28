@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import difflib
 import fnmatch
 import os
 import re
@@ -75,6 +76,22 @@ def _atomic_write(path: Path, text: str) -> None:
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise
+
+
+def unified_diff(rel: str, before: str, after: str, max_lines: int = 200) -> str:
+    lines = list(
+        difflib.unified_diff(
+            before.splitlines(keepends=True),
+            after.splitlines(keepends=True),
+            fromfile=f"a/{rel}",
+            tofile=f"b/{rel}",
+            n=2,
+        )
+    )
+    text = "".join(line if line.endswith("\n") else line + "\n" for line in lines[:max_lines])
+    if len(lines) > max_lines:
+        text += f"[... {len(lines) - max_lines} more diff lines]\n"
+    return text
 
 
 def _umask() -> int:
@@ -157,10 +174,14 @@ class WriteFile:
         existed = path.exists()
         if existed and path not in ctx.read_files:
             raise ToolError("file exists; read it with read_file before overwriting it")
+        before = _read_text(path) if existed else ""
         _atomic_write(path, content)
         ctx.read_files.add(path)
         verb = "overwrote" if existed else "created"
-        return ToolResult(f"{verb} {display_path(ctx.root, path)} ({len(content)} chars)")
+        rel = display_path(ctx.root, path)
+        return ToolResult(
+            f"{verb} {rel} ({len(content)} chars)", display=unified_diff(rel, before, content)
+        )
 
 
 class EditFile:
@@ -210,8 +231,10 @@ class EditFile:
         _atomic_write(path, updated)
         line = text[: text.index(old)].count("\n") + 1
         n = count if replace_all else 1
+        rel = display_path(ctx.root, path)
         return ToolResult(
-            f"edited {display_path(ctx.root, path)}: {n} replacement(s), first at line {line}"
+            f"edited {rel}: {n} replacement(s), first at line {line}",
+            display=unified_diff(rel, text, updated),
         )
 
 

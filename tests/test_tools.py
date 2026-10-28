@@ -241,3 +241,12 @@ def test_walk_limit(ctx: ToolContext, monkeypatch: pytest.MonkeyPatch) -> None:
         (ctx.root / f"f{i}.txt").write_text("x\n")
     files_found, truncated = files._walk(ctx.root, ctx.root, limit=3)
     assert len(files_found) == 3 and truncated
+
+
+def test_write_and_edit_produce_diffs(ctx: ToolContext) -> None:
+    res = WriteFile().run({"path": "d.py", "content": "a = 1\n"}, ctx)
+    assert "+a = 1" in res.display and "b/d.py" in res.display
+    res = EditFile().run({"path": "d.py", "old_string": "a = 1", "new_string": "a = 2"}, ctx)
+    assert "-a = 1" in res.display and "+a = 2" in res.display
+    # The diff is for the user; the model sees the short summary only.
+    assert "a = 2" not in res.content

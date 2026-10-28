@@ -12,6 +12,7 @@ from cli_agent.messages import ToolUseBlock
 from cli_agent.tools import ToolResult
 
 PREVIEW_LINES = 8
+DIFF_LINES = 30
 # C0/C1 control characters except tab and newline. Model-supplied text is shown
 # with these escaped, so escape sequences or carriage returns cannot make an
 # approval prompt display something other than what will run.
@@ -53,6 +54,7 @@ class TerminalUI:
         color = hasattr(self.err, "isatty") and self.err.isatty()
         self._dim = "\x1b[2m" if color else ""
         self._red = "\x1b[31m" if color else ""
+        self._green = "\x1b[32m" if color else ""
         self._yellow = "\x1b[33m" if color else ""
         self._reset = "\x1b[0m" if color else ""
         self._streamed = False
@@ -85,12 +87,35 @@ class TerminalUI:
         print(f"{self._dim}● {line}{self._reset}", file=self.err, flush=True)
 
     def on_tool_end(self, call: ToolUseBlock, result: ToolResult) -> None:
+        if result.display and not result.is_error:
+            self._print_diff(result.display)
         if result.is_error:
             text = escape_controls(_preview(result.content, 4))
             print(f"{self._red}  ✗ {text}{self._reset}", file=self.err)
         elif self.verbose:
             print(
                 f"{self._dim}{escape_controls(_preview(result.content))}{self._reset}",
+                file=self.err,
+            )
+
+    def _print_diff(self, diff: str) -> None:
+        rows = diff.splitlines()
+        shown = rows if self.verbose else rows[:DIFF_LINES]
+        for row in shown:
+            row = escape_controls(row, keep_newlines=False)
+            if row.startswith(("+++", "---")):
+                color = self._dim
+            elif row.startswith("+"):
+                color = self._green
+            elif row.startswith("-"):
+                color = self._red
+            else:
+                color = self._dim
+            print(f"  {color}{row}{self._reset}", file=self.err)
+        if len(shown) < len(rows):
+            print(
+                f"  {self._dim}… ({len(rows) - len(shown)} more diff lines; -v shows all)"
+                f"{self._reset}",
                 file=self.err,
             )
 
@@ -160,8 +185,14 @@ class JsonUI:
         self.emit("tool_start", id=call.id, name=call.name, input=call.input, summary=summary)
 
     def on_tool_end(self, call: ToolUseBlock, result: ToolResult) -> None:
+        extra = {"diff": result.display} if result.display else {}
         self.emit(
-            "tool_end", id=call.id, name=call.name, is_error=result.is_error, output=result.content
+            "tool_end",
+            id=call.id,
+            name=call.name,
+            is_error=result.is_error,
+            output=result.content,
+            **extra,
         )
 
     def on_notice(self, message: str) -> None:

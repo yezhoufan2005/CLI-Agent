@@ -33,6 +33,8 @@ class ToolContext:
 class ToolResult:
     content: str
     is_error: bool = False
+    display: str = ""
+    """Extra detail for the user only (e.g. a diff); never sent to the model."""
 
 
 class Tool(Protocol):

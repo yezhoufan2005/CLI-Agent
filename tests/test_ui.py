@@ -69,3 +69,22 @@ def test_streamed_text_not_printed_twice() -> None:
     ui.on_text("Hello")
     ui.on_text("again")
     assert out.getvalue() == "Hello\nagain\n"
+
+
+def test_diff_shown_after_edit() -> None:
+    from cli_agent.tools import ToolResult
+
+    err = io.StringIO()
+    ui = TerminalUI(interactive=False, out=io.StringIO(), err=err)
+    diff = "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n" + "+more\n" * 40
+    ui.on_tool_end(ToolUseBlock("t", "edit_file", {}), ToolResult("edited x", display=diff))
+    out = err.getvalue()
+    assert "-old" in out and "+new" in out and "more diff lines" in out
+
+
+def test_json_ui_includes_diff() -> None:
+    from cli_agent.tools import ToolResult
+
+    out = io.StringIO()
+    JsonUI(out=out).on_tool_end(ToolUseBlock("t", "edit_file", {}), ToolResult("ok", display="D"))
+    assert json.loads(out.getvalue())["diff"] == "D"
