@@ -60,8 +60,21 @@ class Term:
         os.write(self.master, (line + "\n").encode())
 
     def close(self) -> int:
+        # Keep draining output while waiting: macOS ptys have small buffers, and a
+        # child blocked writing to a full pty never exits.
+        deadline = time.monotonic() + 15
         try:
-            return self.proc.wait(timeout=15)
+            while self.proc.poll() is None:
+                if time.monotonic() > deadline:
+                    self.proc.kill()
+                    raise AssertionError(f"REPL did not exit; output:\n{self.buf}")
+                ready, _, _ = select.select([self.master], [], [], 0.1)
+                if ready:
+                    try:
+                        self.buf += os.read(self.master, 4096).decode("utf-8", "replace")
+                    except OSError:
+                        pass
+            return self.proc.returncode
         finally:
             os.close(self.master)
 
