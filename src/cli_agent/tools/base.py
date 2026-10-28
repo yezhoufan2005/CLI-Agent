@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Literal, Protocol
 
 from cli_agent.providers.base import ToolSpec
+from cli_agent.sandbox import Sandbox
 
 # What a tool can do to the world. Drives the permission decision.
 Effect = Literal["read", "write", "execute"]
@@ -27,6 +28,8 @@ class ToolContext:
     shell_timeout: float = 120.0
     read_files: set[Path] = field(default_factory=set)
     """Files the model has read this session; edits require a prior read."""
+    sandbox: Sandbox | None = None
+    """When set, shell commands run inside it."""
 
 
 @dataclass

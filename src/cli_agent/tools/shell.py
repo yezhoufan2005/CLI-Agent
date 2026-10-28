@@ -73,8 +73,11 @@ class RunShell:
         # Spool output to a temp file so a chatty command can't exhaust memory via pipes.
         with tempfile.TemporaryFile() as out:
             try:
+                argv = ["bash", "-c", command]
+                if ctx.sandbox is not None:
+                    argv = ctx.sandbox.wrap(argv)
                 proc = subprocess.Popen(
-                    ["bash", "-c", command],
+                    argv,
                     cwd=ctx.root,
                     env=env,
                     stdin=subprocess.DEVNULL,
