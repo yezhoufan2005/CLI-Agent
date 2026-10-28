@@ -13,7 +13,7 @@ import os
 import sys
 from pathlib import Path
 
-from cli_agent import __version__
+from cli_agent import __version__, log
 from cli_agent.agent import Agent, RunResult
 from cli_agent.config import Config, ConfigError, load_config
 from cli_agent.permissions import MODES, PermissionPolicy
@@ -86,6 +86,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="deny rule, e.g. 'run_shell:git push*' (repeatable)",
     )
     p.add_argument("--config", type=Path, help="config file path")
+    p.add_argument(
+        "--debug-log",
+        type=Path,
+        metavar="FILE",
+        help="append a JSON-lines debug log (timings, tokens, decisions; no content)",
+    )
     p.add_argument("-v", "--verbose", action="store_true", help="show tool output")
     p.add_argument("--version", action="version", version=f"cli-agent {__version__}")
     return p
@@ -186,6 +192,12 @@ def main(argv: list[str] | None = None) -> int:
         _err(str(err))
         return EXIT_USAGE
     harden_process()
+    if args.debug_log:
+        try:
+            log.enable(args.debug_log)
+        except OSError as err:
+            _err(f"cannot open debug log {args.debug_log}: {err}")
+            return EXIT_USAGE
     if args.mode:
         cfg.mode = args.mode
     if args.model:
@@ -281,7 +293,14 @@ def _finish(result: RunResult, session: Session, ui: TerminalUI | JsonUI) -> int
             session_id=session.id,
             usage=session.usage.to_dict(),
         )
-    elif result.status != "done":
+    else:
+        u = session.usage
+        print(
+            f"[{result.turns} turn(s); tokens in {u.input_tokens}, out {u.output_tokens}, "
+            f"cache read {u.cache_read_tokens}]",
+            file=sys.stderr,
+        )
+    if not isinstance(ui, JsonUI) and result.status != "done":
         _err(f"{result.status}: {result.error}")
         print(
             f"session {session.id} saved; resume with: cli-agent --resume {session.id}",
