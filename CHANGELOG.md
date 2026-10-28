@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Known limitations
+- The OpenAI-compatible provider (now streaming) and the MCP client have only been tested against fakes, not real third-party endpoints or servers.
+
 ### Changed
 - Elided tool output now names the call it replaced and repeats the note the model wrote after it, so long sessions don't loop re-reading files.
 
