@@ -131,6 +131,19 @@ def test_subcommands(tmp_path: Path, sub: str) -> None:
     assert r.returncode == 0 and "no saved sessions" in r.stdout
 
 
+def test_sessions_limit(tmp_path: Path) -> None:
+    for i in range(3):
+        assert run_cli(tmp_path, [{"text": "ok"}], f"task {i}").returncode == 0
+    r = run_cli(tmp_path, [], "sessions")
+    assert r.returncode == 0 and len(r.stdout.splitlines()) == 3
+    r = run_cli(tmp_path, [], "sessions", "--limit", "2")
+    assert r.returncode == 0 and len(r.stdout.splitlines()) == 2
+    r = run_cli(tmp_path, [], "sessions", "--limit", "0")
+    assert r.returncode == 0 and len(r.stdout.splitlines()) == 3
+    r = run_cli(tmp_path, [], "sessions", "--limit", "-1")
+    assert r.returncode == 2 and "--limit" in r.stderr
+
+
 def test_version(tmp_path: Path) -> None:
     r = run_cli(tmp_path, [], "--version")
     assert r.returncode == 0 and r.stdout.startswith("cli-agent ")
