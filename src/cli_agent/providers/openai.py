@@ -27,6 +27,7 @@ from cli_agent.providers.base import (
     ProviderError,
     ToolSpec,
     parse_retry_after,
+    with_deadline,
 )
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
@@ -118,7 +119,7 @@ class OpenAIProvider:
                     except ValueError as err:
                         raise ProviderError("response was not valid JSON", retryable=True) from err
                     return _parse_safely(lambda: parse_response(data))
-                lines = resp.iter_lines()
+                lines = with_deadline(resp.iter_lines())
                 return _parse_safely(lambda: parse_response(accumulate_stream(lines, on_text)))
         except httpx.TimeoutException as err:
             raise ProviderError(f"request timed out: {err}", retryable=True) from err

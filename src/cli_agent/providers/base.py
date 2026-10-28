@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -80,6 +80,19 @@ def with_retries(
             if on_retry is not None:
                 on_retry(attempt, err, wait)
             sleep(wait)
+
+
+STREAM_DEADLINE = 900.0
+
+
+def with_deadline(lines: Iterator[str], seconds: float = STREAM_DEADLINE) -> Iterator[str]:
+    """Bound a whole stream. httpx timeouts apply per read, so a server that
+    keeps sending keepalives (pings, comments) would otherwise never time out."""
+    end = time.monotonic() + seconds
+    for line in lines:
+        if time.monotonic() > end:
+            raise ProviderError(f"stream did not finish within {seconds:g}s", retryable=True)
+        yield line
 
 
 def parse_retry_after(value: str | None) -> float | None:
