@@ -1,0 +1,226 @@
+{
+ "model": "claude-sonnet-4-6",
+ "seed": 1,
+ "results": [
+  {
+   "instance_id": "sympy__sympy-11897",
+   "resolved": false,
+   "fail_to_pass": "0/1",
+   "pass_to_pass": "95/95",
+   "status": "done",
+   "turns": 26,
+   "input_tokens": 547643,
+   "secs": 352.4,
+   "diffstat": " 2 files changed, 3 insertions(+), 3 deletions(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-12236",
+   "resolved": true,
+   "fail_to_pass": "1/1",
+   "pass_to_pass": "133/133",
+   "status": "done",
+   "turns": 16,
+   "input_tokens": 210162,
+   "secs": 102.5,
+   "diffstat": " 3 files changed, 24 insertions(+), 4 deletions(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-12481",
+   "resolved": true,
+   "fail_to_pass": "1/1",
+   "pass_to_pass": "7/7",
+   "status": "done",
+   "turns": 7,
+   "input_tokens": 50347,
+   "secs": 24.1,
+   "diffstat": " 2 files changed, 3 insertions(+), 7 deletions(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-13146",
+   "resolved": false,
+   "fail_to_pass": "0/1",
+   "pass_to_pass": "34/34",
+   "status": "done",
+   "turns": 20,
+   "input_tokens": 264944,
+   "secs": 178.5,
+   "diffstat": " 2 files changed, 15 insertions(+), 1 deletion(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-13177",
+   "resolved": false,
+   "fail_to_pass": "1/2",
+   "pass_to_pass": "75/76",
+   "status": "done",
+   "turns": 7,
+   "input_tokens": 43297,
+   "secs": 27.5,
+   "diffstat": " 2 files changed, 17 insertions(+), 1 deletion(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-13773",
+   "resolved": true,
+   "fail_to_pass": "1/1",
+   "pass_to_pass": "69/69",
+   "status": "done",
+   "turns": 8,
+   "input_tokens": 61380,
+   "secs": 38.7,
+   "diffstat": " 3 files changed, 38 insertions(+)"
+  },
+  {
+   "instance_id": "sympy__sympy-13915",
+   "resolved": false,
+   "fail_to_pass": "0/1",
+   "pass_to_pass": "62/62",
+   "status": "done",
+   "turns": 16,
+   "input_tokens": 174674,
+   "secs": 232.7,
+   "diffstat": " 2 files changed, 20 insertions(+), 1 deletion(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-13971",
+   "resolved": true,
+   "fail_to_pass": "1/1",
+   "pass_to_pass": "102/102",
+   "status": "done",
+   "turns": 4,
+   "input_tokens": 20879,
+   "secs": 9.4,
+   "diffstat": " 2 files changed, 14 insertions(+), 14 deletions(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-14308",
+   "resolved": false,
+   "fail_to_pass": "0/2",
+   "pass_to_pass": "113/113",
+   "status": "done",
+   "turns": 8,
+   "input_tokens": 65728,
+   "secs": 45.7,
+   "diffstat": " 3 files changed, 37 insertions(+), 56 deletions(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-14396",
+   "resolved": true,
+   "fail_to_pass": "1/1",
+   "pass_to_pass": "44/44",
+   "status": "done",
+   "turns": 5,
+   "input_tokens": 37485,
+   "secs": 17.7,
+   "diffstat": " 2 files changed, 25 insertions(+), 6 deletions(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-14817",
+   "resolved": true,
+   "fail_to_pass": "1/1",
+   "pass_to_pass": "111/111",
+   "status": "done",
+   "turns": 8,
+   "input_tokens": 68393,
+   "secs": 37.7,
+   "diffstat": " 2 files changed, 8 insertions(+), 2 deletions(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-15346",
+   "resolved": true,
+   "fail_to_pass": "1/1",
+   "pass_to_pass": "22/22",
+   "status": "done",
+   "turns": 12,
+   "input_tokens": 141127,
+   "secs": 58.0,
+   "diffstat": " 2 files changed, 11 insertions(+), 2 deletions(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-17630",
+   "resolved": false,
+   "fail_to_pass": "1/2",
+   "pass_to_pass": "19/19",
+   "status": "done",
+   "turns": 8,
+   "input_tokens": 68184,
+   "secs": 29.5,
+   "diffstat": " 3 files changed, 29 insertions(+), 4 deletions(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-17655",
+   "resolved": false,
+   "fail_to_pass": "0/2",
+   "pass_to_pass": "9/9",
+   "status": "done",
+   "turns": 7,
+   "input_tokens": 53183,
+   "secs": 47.6,
+   "diffstat": " 2 files changed, 10 insertions(+), 2 deletions(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-19254",
+   "resolved": false,
+   "fail_to_pass": "0/1",
+   "pass_to_pass": "18/18",
+   "status": "done",
+   "turns": 5,
+   "input_tokens": 38588,
+   "secs": 37.9,
+   "diffstat": " 2 files changed, 23 insertions(+), 6 deletions(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-21379",
+   "resolved": true,
+   "fail_to_pass": "1/1",
+   "pass_to_pass": "91/91",
+   "status": "done",
+   "turns": 9,
+   "input_tokens": 68827,
+   "secs": 40.2,
+   "diffstat": " 2 files changed, 19 insertions(+), 4 deletions(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-22005",
+   "resolved": true,
+   "fail_to_pass": "1/1",
+   "pass_to_pass": "2/2",
+   "status": "done",
+   "turns": 11,
+   "input_tokens": 91572,
+   "secs": 66.8,
+   "diffstat": " 2 files changed, 9 insertions(+), 1 deletion(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-22714",
+   "resolved": true,
+   "fail_to_pass": "1/1",
+   "pass_to_pass": "11/11",
+   "status": "done",
+   "turns": 6,
+   "input_tokens": 38992,
+   "secs": 36.7,
+   "diffstat": " 2 files changed, 8 insertions(+), 1 deletion(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-24152",
+   "resolved": true,
+   "fail_to_pass": "1/1",
+   "pass_to_pass": "6/6",
+   "status": "done",
+   "turns": 6,
+   "input_tokens": 38399,
+   "secs": 21.0,
+   "diffstat": " 2 files changed, 11 insertions(+), 3 deletions(-)"
+  },
+  {
+   "instance_id": "sympy__sympy-24213",
+   "resolved": true,
+   "fail_to_pass": "1/1",
+   "pass_to_pass": "31/31",
+   "status": "done",
+   "turns": 6,
+   "input_tokens": 36607,
+   "secs": 14.3,
+   "diffstat": " 2 files changed, 18 insertions(+), 1 deletion(-)"
+  }
+ ]
+}
