@@ -216,3 +216,16 @@ def test_debug_log_has_events_but_no_content(tmp_path: Path) -> None:
         assert marker not in text
     assert logf.stat().st_mode & 0o777 == 0o600
     assert "tokens in 20, out 10" in r.stderr
+
+
+def test_search_works_through_python_m_entry(tmp_path: Path) -> None:
+    (tmp_path / "work").mkdir()
+    (tmp_path / "work" / "f.py").write_text("NEEDLE = 1\n")
+    script = [
+        {"tool_calls": [{"name": "search_files", "input": {"pattern": "NEEDLE"}}]},
+        {"text": "found"},
+    ]
+    r = run_cli(tmp_path, script, "--json", "find it")
+    assert r.returncode == 0, r.stderr
+    ends = [json.loads(x) for x in r.stdout.splitlines() if '"tool_end"' in x]
+    assert "f.py:1: NEEDLE = 1" in ends[0]["output"]

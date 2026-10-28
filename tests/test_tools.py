@@ -283,3 +283,16 @@ def test_shell_runaway_output_killed(ctx: ToolContext, monkeypatch: pytest.Monke
     monkeypatch.setattr(shell, "MAX_SPOOL_BYTES", 1_000_000)
     res = RunShell().run({"command": "yes", "timeout": 30}, ctx)
     assert res.is_error and "output and was killed" in res.content
+
+
+def test_search_stops_catastrophic_regex(ctx: ToolContext, monkeypatch: pytest.MonkeyPatch) -> None:
+    import time
+
+    import cli_agent.tools.files as files
+
+    monkeypatch.setattr(files, "SEARCH_TIMEOUT", 2.0)
+    (ctx.root / "a.txt").write_text("a" * 40 + "!\n")
+    started = time.monotonic()
+    with pytest.raises(ToolError, match="longer than"):
+        SearchFiles().run({"pattern": "(a+)+$"}, ctx)
+    assert time.monotonic() - started < 10
