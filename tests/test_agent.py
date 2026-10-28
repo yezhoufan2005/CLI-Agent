@@ -165,9 +165,24 @@ def test_max_turns(tmp_path: Path) -> None:
     assert result.status == "max_turns" and result.turns == 2
 
 
-def test_max_tokens_reported(tmp_path: Path) -> None:
-    agent, _ = make_agent(tmp_path, [{"text": "trunc", "stop_reason": "max_tokens"}])
-    assert agent.run(new_session(tmp_path), "go").status == "max_tokens"
+def test_max_tokens_continues_then_gives_up(tmp_path: Path) -> None:
+    script = [{"text": f"trunc {i}", "stop_reason": "max_tokens"} for i in range(4)]
+    agent, provider = make_agent(tmp_path, script)
+    result = agent.run(new_session(tmp_path), "go")
+    assert result.status == "max_tokens" and len(provider.requests) == 4
+    last = provider.requests[-1].messages[-1]
+    assert last.role == "user" and "cut off" in last.text()
+
+
+def test_max_tokens_continuation_finishes_task(tmp_path: Path) -> None:
+    script = [
+        {"text": "long thinking...", "stop_reason": "max_tokens"},
+        {"tool_calls": [{"name": "write_file", "input": {"path": "f", "content": "x"}}]},
+        {"text": "done"},
+    ]
+    agent, _ = make_agent(tmp_path, script)
+    result = agent.run(new_session(tmp_path), "go")
+    assert result.status == "done" and (tmp_path / "f").read_text() == "x"
 
 
 def test_interrupt_during_tool_leaves_valid_history(tmp_path: Path) -> None:
