@@ -11,7 +11,7 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | B-STREAM | P0 | done | Stream model output (SSE) so text appears as it is generated; Ctrl-C mid-stream cancels cleanly | Contract test with recorded SSE; manual REPL check |
 | B-CLAUDE | P0 | done | Root `CLAUDE.md` for contributors/agents | File exists, < 60 lines |
 | B-RELEASE | P0 | doing | Release workflow: tag `v*` → build wheel/sdist, GitHub Release with notes; CHANGELOG | Dry-run release on a tag; install from release asset works |
-| B-GIT-SAFETY | P1 | todo | Warn at start when workspace is not a git repo or has uncommitted changes in write modes | CLI test |
+| B-GIT-SAFETY | P1 | done | Warn at start when workspace is not a git repo or has uncommitted changes in write modes | CLI test |
 | B-DIFF | P1 | done | Show a unified diff of each edit/write in the terminal UI (and in approval prompts) | UI unit test |
 | B-E2E-MORE | P1 | todo | More E2E tasks: multi-file change, recover from failing command, large file paging, denied action | e2e passes ≥ 90% over 2 runs |
 | B-OPENAI | P1 | todo | OpenAI-compatible Chat Completions provider | Contract tests; e2e via a compatible endpoint if available |

@@ -60,8 +60,9 @@ def test_prompt_from_stdin_and_json_events(tmp_path: Path) -> None:
     r = run_cli(tmp_path, script, "--json", stdin="list files\n")
     assert r.returncode == 0, r.stderr
     events = [json.loads(line) for line in r.stdout.splitlines()]
-    kinds = [e["event"] for e in events]
+    kinds = [e["event"] for e in events if e["event"] != "notice"]
     assert kinds == ["tool_start", "tool_end", "text", "result"]
+    assert any("not a git repository" in e.get("message", "") for e in events)
     assert events[-1]["status"] == "done" and events[-1]["text"] == "listed"
 
 
@@ -152,3 +153,35 @@ def test_shell_cannot_read_agent_environ(tmp_path: Path) -> None:
     assert "FAKE_TOKEN_VALUE" not in shell_out
     # bash's $PPID is the agent; reading its environ must fail or find nothing.
     assert "Permission denied" in shell_out or shell_out.strip().endswith("0")
+
+
+def _git(work: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-C", str(work), *args],
+        check=True,
+        capture_output=True,
+        env={
+            **os.environ,
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@t",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@t",
+        },
+    )
+
+
+def test_git_warnings(tmp_path: Path) -> None:
+    r = run_cli(tmp_path, [{"text": "x"}], "hi")
+    assert "not a git repository" in r.stderr
+    work = tmp_path / "work"
+    _git(work, "init", "-q")
+    (work / "f.txt").write_text("a")
+    _git(work, "add", "f.txt")
+    _git(work, "commit", "-qm", "init")
+    r = run_cli(tmp_path, [{"text": "x"}], "hi")
+    assert "git" not in r.stderr
+    (work / "f.txt").write_text("b")
+    r = run_cli(tmp_path, [{"text": "x"}], "hi")
+    assert "uncommitted changes" in r.stderr
+    r = run_cli(tmp_path, [{"text": "x"}], "--mode", "read-only", "hi")
+    assert "uncommitted" not in r.stderr
