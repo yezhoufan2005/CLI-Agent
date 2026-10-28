@@ -6,10 +6,10 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | ID | P | Status | Item | Acceptance check |
 |---|---|---|---|---|
 | B-SLICE | P0 | done | Vertical slice: loop, 6 tools, permissions, sessions, CLI, Anthropic adapter | `check.sh` green; e2e 3/3 (2026-10-28) |
-| B-CI | P0 | todo | CI green on GitHub for the matrix; protect `main` (require `check` + `build`) | Green run on `main`; ruleset active |
-| B-REVIEW | P0 | todo | Independent security review of permissions, path confinement, shell, config trust | Findings fixed or filed as issues |
+| B-CI | P0 | done | CI green on GitHub for the matrix; protect `main` (require `check` + `build`) | Green run on `main`; ruleset active |
+| B-REVIEW | P0 | done | Independent security review of permissions, path confinement, shell, config trust | Findings fixed or filed as issues (2026-10-28, see progress) |
 | B-STREAM | P0 | todo | Stream model output (SSE) so text appears as it is generated; Ctrl-C mid-stream cancels cleanly | Contract test with recorded SSE; manual REPL check |
-| B-CLAUDE | P0 | todo | Root `CLAUDE.md` for contributors/agents | File exists, < 60 lines |
+| B-CLAUDE | P0 | done | Root `CLAUDE.md` for contributors/agents | File exists, < 60 lines |
 | B-RELEASE | P0 | todo | Release workflow: tag `v*` → build wheel/sdist, GitHub Release with notes; CHANGELOG | Dry-run release on a tag; install from release asset works |
 | B-GIT-SAFETY | P1 | todo | Warn at start when workspace is not a git repo or has uncommitted changes in write modes | CLI test |
 | B-DIFF | P1 | todo | Show a unified diff of each edit/write in the terminal UI (and in approval prompts) | UI unit test |
@@ -21,3 +21,5 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | B-COMPACT | P2 | todo | Summarization compaction when elision is not enough | Long-session e2e |
 | B-MCP | P2 | todo | MCP client for external tools (stdio) | Contract test with a toy server |
 | B-PARALLEL | P2 | todo | Run independent read-only tool calls concurrently | Agent test |
+| B-PROC-LIMITS | P1 | todo | Kill processes that escape the shell's process group (setsid/nohup) at timeout; cap the on-disk output spool | Test: `setsid sleep` child is gone after timeout; spool ≤ limit |
+| B-REGEX-TIMEOUT | P2 | todo | Bound search_files time for pathological regexes (subprocess or deadline) | Test with `(a+)+$` on a long line returns within N s |

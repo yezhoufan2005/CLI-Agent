@@ -38,7 +38,8 @@ def load_project_instructions(root: Path) -> list[tuple[str, str]]:
     found = []
     for name in INSTRUCTION_FILES:
         p = root / name
-        if p.is_file():
+        # A symlink could pull a file from outside the workspace into the prompt.
+        if p.is_file() and not p.is_symlink():
             try:
                 text = p.read_text(encoding="utf-8", errors="replace")
             except OSError:

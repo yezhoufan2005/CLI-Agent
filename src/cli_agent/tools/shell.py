@@ -14,7 +14,13 @@ from cli_agent.tools.base import Effect, ToolContext, ToolError, ToolResult, req
 
 MAX_TIMEOUT = 600.0
 # Environment variables that look like credentials are never passed to commands.
-_SECRET_ENV = re.compile(r"(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|CREDENTIAL|PRIVATE_KEY)", re.I)
+# Best-effort name denylist: commands run as the user and can still read files the
+# user can read (see README "Permissions").
+_SECRET_ENV = re.compile(
+    r"(TOKEN|SECRET|PASSW|_PASS$|API_?KEY|ACCESS_?KEY|CREDENTIAL|PRIVATE_KEY|_AUTH|AUTH_|"
+    r"COOKIE|SESSION_?KEY|DATABASE_URL|_DSN$|SSH_AUTH_SOCK|GPG_AGENT)",
+    re.I,
+)
 
 
 def scrubbed_env(base: dict[str, str]) -> dict[str, str]:

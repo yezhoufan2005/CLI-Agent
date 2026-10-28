@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
 import fnmatch
 import os
 import re
+import stat
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +26,7 @@ from cli_agent.tools.base import (
 MAX_READ_LINES = 2000
 MAX_LINE_CHARS = 2000
 MAX_FILE_BYTES = 5_000_000
+MAX_WALK_FILES = 20_000
 # Directories never worth walking for list/search.
 SKIP_DIRS = frozenset(
     {
@@ -46,6 +50,8 @@ def _read_text(path: Path) -> str:
         raise ToolError(f"file not found: {path}")
     if path.is_dir():
         raise ToolError(f"{path} is a directory; use list_files")
+    if not path.is_file():
+        raise ToolError(f"{path} is not a regular file")
     if path.stat().st_size > MAX_FILE_BYTES:
         raise ToolError(f"{path} is larger than {MAX_FILE_BYTES} bytes")
     data = path.read_bytes()
@@ -56,13 +62,25 @@ def _read_text(path: Path) -> str:
 
 def _atomic_write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.cli-agent.tmp")
-    mode = path.stat().st_mode & 0o7777 if path.exists() else None
-    with open(tmp, "w", encoding="utf-8", newline="") as fh:
-        fh.write(text)
-    if mode is not None:
-        os.chmod(tmp, mode)
-    os.replace(tmp, path)
+    mode = path.stat().st_mode & 0o7777 if path.exists() else 0o666 & ~_umask()
+    # mkstemp creates a fresh file with O_EXCL, so a pre-planted symlink at the
+    # temp name cannot redirect the write outside the workspace.
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+            os.fchmod(fh.fileno(), mode)
+            fh.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+def _umask() -> int:
+    current = os.umask(0)
+    os.umask(current)
+    return current
 
 
 class ReadFile:
@@ -197,13 +215,24 @@ class EditFile:
         )
 
 
-def _walk(root: Path, start: Path) -> list[Path]:
+def _walk(root: Path, start: Path, limit: int = MAX_WALK_FILES) -> tuple[list[Path], bool]:
+    """Regular files under `start`, skipping symlinks (they may point outside the
+    workspace) and SKIP_DIRS. Returns (files, truncated)."""
     found: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(start):
         dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
         for name in sorted(filenames):
-            found.append(Path(dirpath) / name)
-    return found
+            p = Path(dirpath) / name
+            try:
+                st = p.lstat()
+            except OSError:
+                continue
+            if not stat.S_ISREG(st.st_mode):
+                continue
+            if len(found) >= limit:
+                return found, True
+            found.append(p)
+    return found, False
 
 
 class ListFiles:
@@ -234,7 +263,8 @@ class ListFiles:
             raise ToolError("pattern must be a string")
         root = ctx.root.resolve()
         rels = []
-        for p in _walk(root, start):
+        files, truncated = _walk(root, start)
+        for p in files:
             rel = display_path(root, p)
             if pattern and not (fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(p.name, pattern)):
                 continue
@@ -244,6 +274,8 @@ class ListFiles:
         shown = rels[: self.max_entries]
         more = len(rels) - len(shown)
         tail = f"\n[{more} more files not shown; narrow the path or pattern]" if more else ""
+        if truncated:
+            tail += f"\n[stopped after scanning {MAX_WALK_FILES} files; narrow the path]"
         return ToolResult("\n".join(shown) + tail)
 
 
@@ -278,7 +310,10 @@ class SearchFiles:
         start = resolve_in_root(ctx.root, args.get("path") or ".")
         glob = args.get("glob")
         root = ctx.root.resolve()
-        files = [start] if start.is_file() else _walk(root, start)
+        if start.is_file():
+            files, truncated = [start], False
+        else:
+            files, truncated = _walk(root, start)
         matches: list[str] = []
         total = 0
         for f in files:
@@ -294,7 +329,8 @@ class SearchFiles:
             if b"\x00" in data[:8192]:
                 continue
             for lineno, line in enumerate(data.decode("utf-8", "replace").splitlines(), 1):
-                if regex.search(line):
+                # Only the first MAX_LINE_CHARS of a line are searched (minified files).
+                if regex.search(line[:MAX_LINE_CHARS]):
                     total += 1
                     if len(matches) < self.max_matches:
                         matches.append(f"{rel}:{lineno}: {line[:300]}")
@@ -302,4 +338,6 @@ class SearchFiles:
             return ToolResult("(no matches)")
         more = total - len(matches)
         tail = f"\n[{more} more matches not shown]" if more else ""
+        if truncated:
+            tail += f"\n[stopped after scanning {MAX_WALK_FILES} files; narrow the path]"
         return ToolResult(truncate("\n".join(matches) + tail))

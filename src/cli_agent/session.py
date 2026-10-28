@@ -120,8 +120,9 @@ class SessionStore:
         session.updated = datetime.now(UTC).isoformat()
         target = self.path(session.id)
         tmp = target.with_suffix(".json.tmp")
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            os.fchmod(fh.fileno(), 0o600)  # O_CREAT's mode only applies to new files
             json.dump(session.to_dict(), fh, ensure_ascii=False)
             fh.flush()
             os.fsync(fh.fileno())

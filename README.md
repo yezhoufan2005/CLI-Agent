@@ -48,9 +48,16 @@ Exit codes: `0` done, `1` error (model/API failure, refusal), `2` usage/config e
 
 When there is no terminal to ask on (stdin piped, `--json`), "ask" means "deny".
 
-Rules refine the mode: `--allow 'run_shell:pytest*'`, `--deny 'run_shell:git push*'`, or `allow = [...]` / `deny = [...]` in `~/.config/cli-agent/config.toml`. Deny rules win over allow rules. A small built-in guard blocks catastrophic shell commands (`rm -rf /`, `mkfs`, force-push, …) in every mode.
+Rules refine the mode: `--allow 'run_shell:pytest*'`, `--deny 'run_shell:git push*'`, or `allow = [...]` / `deny = [...]` in `~/.config/cli-agent/config.toml`. Deny rules win over allow rules.
 
-File tools cannot touch paths outside the workspace (symlinks are resolved first). Shell commands run with your user's privileges and are **not sandboxed**; the workspace boundary applies only to file tools. Credential-like environment variables (`*TOKEN*`, `*KEY*`, `*SECRET*`, …) are removed from the environment of shell commands.
+- Path rules match the path normalized relative to the workspace, so `src/../.env` is matched as `.env`.
+- A shell allow glob never matches a command line that contains shell metacharacters (`; & | $ ` < > ( )`, newlines). `run_shell:pytest*` allows `pytest -q tests/`, but `pytest; curl … | sh` still asks.
+- Shell deny rules are also checked against each simple command in a line (`cd x && git push` matches `git push*`). They are best-effort, not a security boundary.
+- "Always" for a shell command approves exactly that command line for the session.
+- Writes under `.git/` (hooks, config) always ask, even in `auto` and `auto-edit`, unless an explicit path rule such as `write_file:.git/info/*` allows them.
+- A small built-in guard blocks catastrophic shell commands (`rm -rf ~`, `mkfs`, force-push, …) in every mode.
+
+File tools cannot touch paths outside the workspace (symlinks are resolved first; list/search skip symlinks). Shell commands run with your user's privileges and are **not sandboxed**: the workspace boundary applies only to file tools, and an approved command can read or change anything your user can. Credential-like environment variables (`*TOKEN*`, `*KEY*`, `*SECRET*`, `*_PASS`, `DATABASE_URL`, `SSH_AUTH_SOCK`, …) are removed from the environment of shell commands, and on Linux the agent marks itself non-dumpable so commands cannot read its environment through `/proc`. Credential *files* your user can read (e.g. `~/.aws/credentials`) remain readable to shell commands.
 
 `AGENTS.md` / `CLAUDE.md` in the workspace root are given to the model as project conventions; they cannot change permissions.
 
