@@ -17,7 +17,11 @@ for task in tests/e2e/*/; do
   extra=()
   # Optional per-task flags, one shell word per whitespace-separated token.
   [ -f "$task/args.txt" ] && read -r -a extra < "$task/args.txt"
-  XDG_STATE_HOME="$STATE" timeout 600 uv run --quiet cli-agent -C "$work" --mode auto \
+  # Optional per-task config (e.g. a small context budget); default: none.
+  config=/dev/null
+  [ -f "$task/config.toml" ] && config="$PWD/$task/config.toml"
+  CLI_AGENT_CONFIG="$config" XDG_STATE_HOME="$STATE" timeout 600 uv run --quiet cli-agent \
+    -C "$work" --mode auto --debug-log "$work/.debug.jsonl" \
     --model "$MODEL" "${extra[@]}" --json "$(cat "$task/prompt.txt")" \
     > "$work/.events.jsonl" 2>"$work/.stderr"
   code=$?

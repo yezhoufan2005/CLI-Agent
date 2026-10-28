@@ -225,3 +225,12 @@ def test_project_instructions_skip_symlinks(tmp_path: Path) -> None:
     (ws / "CLAUDE.md").write_text("use tabs")
     prompt = build_system_prompt(ws)
     assert "SECRET-CONTENT" not in prompt and "use tabs" in prompt
+
+
+def test_context_chars_config(tmp_path: Path) -> None:
+    f = tmp_path / "c.toml"
+    f.write_text("context_chars = 50000\n")
+    assert load_config(f, environ={}).context_chars == 50000
+    f.write_text("context_chars = 10\n")
+    with pytest.raises(ConfigError, match="context_chars"):
+        load_config(f, environ={})

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from cli_agent.agent import ELIDED, Agent, compact_history
+from cli_agent.agent import Agent, compact_history
 from cli_agent.messages import Message, TextBlock, ToolResultBlock, ToolUseBlock
 from cli_agent.permissions import PermissionPolicy
 from cli_agent.providers.base import ProviderError, RetryPolicy
@@ -211,7 +211,8 @@ def test_compact_history_elides_oldest(tmp_path: Path) -> None:
         msgs.append(Message("user", [ToolResultBlock(f"t{i}", "x" * 1000)]))
     n = compact_history(msgs, budget=6000, keep_recent=4)
     assert n > 0
-    assert msgs[1].content[0].content == ELIDED  # type: ignore[union-attr]
+    marker = msgs[1].content[0].content  # type: ignore[union-attr]
+    assert marker.startswith("[elided: output of read_file") and '"path": "x"' in marker
     assert msgs[-1].content[0].content == "x" * 1000  # type: ignore[union-attr]
     assert compact_history(msgs, budget=10**9) == 0
 
@@ -250,3 +251,40 @@ def test_incomplete_tool_call_not_executed(tmp_path: Path) -> None:
     assert agent.run(new_session(tmp_path), "go").status == "done"
     res = provider.requests[1].messages[-1].content[0]
     assert isinstance(res, ToolResultBlock) and res.is_error and "cut off" in res.content
+
+
+def test_context_overflow_compacts_and_retries(tmp_path: Path) -> None:
+    (tmp_path / "big.txt").write_text("x" * 5000 + "\n")
+    script = [
+        {"tool_calls": [{"name": "read_file", "input": {"path": "big.txt"}}]},
+        {"tool_calls": [{"name": "read_file", "input": {"path": "big.txt"}}]},
+        {"tool_calls": [{"name": "read_file", "input": {"path": "big.txt"}}]},
+        ProviderError("HTTP 400: invalid_request_error: prompt is too long: 250000 tokens"),
+        {"text": "fits now"},
+    ]
+    ui = RecordingUI()
+    agent, provider = make_agent(tmp_path, script, ui=ui)
+    result = agent.run(new_session(tmp_path), "go")
+    assert result.status == "done" and result.final_text == "fits now"
+    assert any("prompt too long" in m for k, m in ui.events if k == "notice")
+    first_result = provider.requests[-1].messages[2].content[0]
+    assert "big.txt" in first_result.content and "removed" in first_result.content  # type: ignore[union-attr]
+
+
+def test_context_overflow_gives_up_when_nothing_to_elide(tmp_path: Path) -> None:
+    script = [ProviderError("HTTP 400: prompt is too long"), {"text": "never"}]
+    agent, _ = make_agent(tmp_path, script)
+    result = agent.run(new_session(tmp_path), "go")
+    assert result.status == "error" and "too long" in result.error
+
+
+def test_elided_marker_keeps_models_following_note() -> None:
+    msgs = [
+        Message("assistant", [ToolUseBlock("t0", "read_file", {"path": "a"})]),
+        Message("user", [ToolResultBlock("t0", "A = 1\n" + "x" * 2000)]),
+        Message("assistant", [TextBlock("Noted: A = 1"), ToolUseBlock("t1", "list_files", {})]),
+        Message("user", [ToolResultBlock("t1", "y" * 2000)]),
+    ]
+    compact_history(msgs, budget=2500, keep_recent=2)
+    marker = msgs[1].content[0].content  # type: ignore[union-attr]
+    assert "Your note after reading it: Noted: A = 1" in marker

@@ -1,0 +1,1 @@
+Read each of part0.txt through part7.txt in full with read_file, one file at a time (do not use search or the shell). Each contains one line PART_N = value. Write the sum of the eight values to answer.txt.

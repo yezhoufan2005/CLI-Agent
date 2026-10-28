@@ -4,6 +4,12 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Changed
+- Elided tool output now names the call it replaced and repeats the note the model wrote after it, so long sessions don't loop re-reading files.
+
+### Added
+- `context_chars` config key; on a "prompt is too long" error the agent compacts history and retries.
+
 ## 0.1.0 — 2026-10-28
 
 ### Added

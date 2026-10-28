@@ -2,6 +2,16 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — Context management verified end to end (PR #19)
+
+- New E2E task `long-context`: read 8 files one at a time under `context_chars = 40000` (per-task `config.toml`, now supported by `e2e.sh`, which also always writes `.debug.jsonl`). `verify.sh` requires that compaction actually happened.
+- First attempts failed (`exit=3`, 50 turns): after elision the model re-read the same files in a loop. Two causes:
+  1. The old marker didn't say which call it replaced. Fixed: the marker names the tool and arguments.
+  2. **The dev proxy drops assistant text that shares a message with a `tool_use` block.** Probe: the model's previous "The secret word is PELICAN" plus a tool call was quoted back as "NONE"; the same text without a tool call came back verbatim. So the notes the model wrote ("PART_0 = 343") never reached it. Fixed robustly: when a tool result is elided, the model's text that followed it is copied into the marker, because tool results always survive. Also a system-prompt line asks the model to note facts it will need.
+- Verified (E2E): `long-context` PASS in 10 turns with 4 compactions. Full suite `pass=11 fail=0` on claude-sonnet-4-6 and claude-haiku-4-5. This closes AC-R5's "no real-model evidence" limitation.
+- Overflow recovery: a non-retryable "prompt is too long" error compacts the history to half and retries once per elision round (CI: `test_context_overflow_*`). `context_chars` is configurable.
+- Open (not ours to fix, unverified against the real API): via the dev proxy, prompt caching reports `cache_read 0` even for identical 8.9k-token requests. The proxy may not forward `cache_control`. Not reproducible against api.anthropic.com from here (no direct key).
+
 ## 2026-10-28 — 0.1.0 released
 
 - https://github.com/yezhoufan2005/CLI-Agent/releases/tag/v0.1.0 has the wheel, the sdist and SHA256SUMS. It was built by the release workflow from 6599580.

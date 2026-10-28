@@ -277,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
         ui=ui,
         system=build_system_prompt(root),
         max_turns=cfg.max_turns,
+        context_chars=cfg.context_chars,
         max_tokens=cfg.max_tokens,
         save=store.save,
     )
