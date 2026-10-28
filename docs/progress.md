@@ -2,6 +2,17 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — Release 0.2.0 gate evidence
+
+| Gate | Evidence |
+|---|---|
+| 1. CI green | `main` at d94e5b6: success on all 5 jobs. The release workflow re-runs the gate on the tag |
+| 2. ACs verified or limited | New AC-F6 and AC-F7 have CI tests. AC-R5 now has E2E evidence (`long-context`). Remaining limits are in the CHANGELOG |
+| 3. E2E on the release commit | `scripts/e2e.sh claude-sonnet-4-6` at d94e5b6: `pass=11 fail=0` |
+| 4. No open `severity:high` issue | Only #17 (`needs-human`, PyPI, optional) is open |
+| 5. Independent review | Third review of everything since 0.1.0. All 14 findings fixed (PRs #29, #30) |
+| 6. Wheel installs and runs | Checked locally before tagging, and again by the release workflow's smoke test |
+
 ## 2026-10-28 — Third independent review: fixes (PR #29)
 
 The reviewer checked main at 32ec020 (undo, MCP, streaming, search subprocess) and reproduced 14 findings with scripts in /tmp/review3. Status:
