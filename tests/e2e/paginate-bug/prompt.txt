@@ -1,0 +1,1 @@
+Users report that with 7 items and 3 per page, the last item never appears and page 1 shows the wrong items. Fix pager.py (pages are 1-based). Add tests for the cases you fix.

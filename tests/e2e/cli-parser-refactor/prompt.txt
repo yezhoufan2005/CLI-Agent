@@ -1,0 +1,1 @@
+Refactor tool.py to use argparse instead of the hand-written loop. Keep the behaviour the same for valid arguments (-v, --name NAME, --count N) and keep exit code 2 for unknown arguments. Move the greeting logic into a separate function greet(name, count, verbose) that returns a list of lines. Verify by running it.
