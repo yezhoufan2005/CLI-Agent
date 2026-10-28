@@ -68,3 +68,7 @@ The adapter marks the system prompt and the final message block with `cache_cont
 - Agent loop tests with `FakeProvider` (scripted turns, records every request).
 - CLI tests run `python -m cli_agent` as a subprocess with the fake provider (`provider = "fake"` + `CLI_AGENT_FAKE_SCRIPT`), covering exit codes and headless behaviour.
 - E2E against a real model: `scripts/e2e.sh` (local only).
+
+### D9 MCP tools are "execute" and user-configured only
+
+MCP servers come only from the user config file, never from the workspace. That avoids the "repo config runs code" class of problems seen in other agents (see `docs/research.md`). An MCP tool's effect cannot be known, so all of them are treated as `execute`. The client is synchronous: newline-delimited JSON-RPC over stdio, with a reader thread and per-request timeouts. A server that fails to start is reported and skipped, not fatal. Only `tools/list` and `tools/call` are implemented.

@@ -99,6 +99,18 @@ max_turns = 50
 shell_timeout = 120
 ```
 
+### MCP servers
+
+Tools from [MCP](https://modelcontextprotocol.io) stdio servers can be added in the user config file only; a repository cannot add servers:
+
+```toml
+[mcp_servers.fs]
+command = ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
+env = { SOME_SETTING = "value" }     # optional; passed to the server as-is
+```
+
+They appear to the model as `mcp__<server>__<tool>`. Every MCP tool counts as a command: it asks in `ask` and `auto-edit` mode and is denied in `read-only` mode. You can allow one with a rule such as `--allow mcp__fs__read_file`. Servers get the same scrubbed environment as shell commands, plus their configured `env`. They are not sandboxed. Only the tools part of MCP is supported; resources, prompts and sampling are not.
+
 Precedence: defaults < config file < environment (`CLI_AGENT_PROVIDER`, `CLI_AGENT_MODEL`, `CLI_AGENT_MODE`, `ANTHROPIC_*` / `OPENAI_*`) < flags. `provider = "openai"` in the config file selects the OpenAI-compatible provider.
 
 ## Development
