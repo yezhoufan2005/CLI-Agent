@@ -2,6 +2,19 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — SWE-bench Lite (sympy subset), Docker-free (PR #35)
+
+- `scripts/swebench_sympy.py` runs SWE-bench Lite sympy instances without Docker:
+  - Setup: one git worktree per instance at `base_commit`, and a shared Python 3.9 venv with mpmath 1.3.0 (SWE-bench's sympy environment).
+  - The agent sees only the problem statement.
+  - Then the test files are reset, the hidden `test_patch` is applied, and sympy's `bin/test` runs.
+  - Resolved means every FAIL_TO_PASS and PASS_TO_PASS test passes.
+- Harness validation with the gold patches (n=20, seed 1): 19/20 resolved when run 6 in parallel. The one miss (sympy-13146) resolves when run alone; RecursionErrors in neighbouring evalf tests suggest flakiness under load. The harness may therefore undercount by about 1 in 20. These are not official SWE-bench numbers (different runner, no Docker).
+- Results (same 20 instances, `--max-turns 60`; reports in `docs/bench/swebench-lite-sympy-seed1-*.json`):
+  - claude-sonnet-4-6: **12/20**
+  - claude-haiku-4-5: **13/20**
+- Finding: 4 of haiku's 7 misses ended with status `max_tokens`. The model's reply was truncated with no tool call and the agent loop stopped. That is a product defect: the loop should ask the model to continue. Fix in progress (next PR).
+
 ## 2026-10-28 — Real third-party integrations verified (manual)
 
 - **MCP**: `@modelcontextprotocol/server-filesystem` (via `npx -y`, rooted at a scratch dir) configured under `[mcp_servers.fs]`. cli-agent (sonnet-4-6, `--mode auto`) reported "MCP: 14 tool(s) from fs", called `fs.read_text_file`, and returned the file's exact contents. (verified, manual)
