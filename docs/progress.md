@@ -18,7 +18,7 @@ The reviewer checked main at 32ec020 (undo, MCP, streaming, search subprocess) a
 | 8 | med | `close()` left launcher children running | fixed: TERM then KILL the process group. Repro: 0 leftovers |
 | 9 | med | Crash in a workspace whose path is not valid UTF-8 | fixed: `os.fsencode` |
 | 10 | low | Empty prompts pushed real checkpoints out of the cap | fixed (CI) |
-| 11 | low | Concurrent processes in one workspace lose checkpoints | **open**: last writer wins. Documented here; needs a file lock |
+| 11 | low | Concurrent processes in one workspace lose checkpoints | fixed in PR #30: every change is load-modify-save under `flock`; per-process temp files; checkpoints tagged with an id and owner pid (CI: `test_two_processes_keep_each_others_checkpoints`) |
 | 12 | low | A corrupt checkpoint file crashed every run | fixed: validated and ignored if wrong (CI) |
 | 13 | low | Overflow retry fired on max_tokens-caused errors | fixed: those are excluded, and shrinking is capped at 4 rounds (CI) |
 | 14 | low | OpenAI stream: repeated names, index-less fragments, in-stream context error marked retryable | fixed (CI) |

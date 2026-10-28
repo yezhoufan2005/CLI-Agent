@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from cli_agent.checkpoint import Checkpoints
@@ -114,3 +115,25 @@ def test_corrupt_checkpoint_file_is_ignored(tmp_path: Path) -> None:
     ):
         cps.path.write_text(bad)
         assert Checkpoints(cps.path, ctx.root).undo() is None
+
+
+def test_two_processes_keep_each_others_checkpoints(tmp_path: Path) -> None:
+    ctx, cps = setup(tmp_path)
+    import cli_agent.checkpoint as cp_mod
+
+    other = Checkpoints(cps.path, ctx.root)  # a second cli-agent process
+    ctx_b = ToolContext(root=ctx.root, checkpoints=other)
+    cps.begin("A: write x")
+    # Pretend A's checkpoint belongs to another live process (pid 1 always exists).
+    data = json.loads(cps.path.read_text())
+    data["checkpoints"][-1]["owner"] = 1
+    cps.path.write_text(json.dumps(data))
+    assert cp_mod._owner_alive(data["checkpoints"][-1])
+    other.begin("B: write y")
+    WriteFile().run({"path": "x", "content": "1"}, ctx)
+    WriteFile().run({"path": "y", "content": "2"}, ctx_b)
+    labels = []
+    while (r := Checkpoints(cps.path, ctx.root).undo()) is not None:
+        labels.append(r.label)
+    assert sorted(labels) == ["A: write x", "B: write y"]
+    assert not (ctx.root / "x").exists() and not (ctx.root / "y").exists()
