@@ -2,6 +2,20 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — 0.1.0 released
+
+- https://github.com/yezhoufan2005/CLI-Agent/releases/tag/v0.1.0 has the wheel, the sdist and SHA256SUMS. It was built by the release workflow from 6599580.
+- Process slip: the first `v0.1.0` tag was pushed before PR #16 merged, so it pointed at cdd45b3 (the wrong commit). Its release run failed at the gate, so nothing was published. The tag was deleted and re-created on the merged commit only after `main` CI passed. The cause was a test that extracted `Unreleased` release notes, which broke once that section was frozen; the test now checks the current version.
+- Verified (manual): downloaded the release assets, `sha256sum -c` passed, installed the wheel into a clean venv (`cli-agent --version` → 0.1.0), and ran a real-model task with it (fixed `sq` in a scratch repo, checked with python3).
+- Opened #17 (`needs-human`, optional): publishing to PyPI needs owner credentials. GitHub release install works without it.
+
+Next candidates, in priority order:
+1. Prompt caching showed `cache read 0` over a 4-turn real run. Find out whether the proxy or our request is at fault.
+2. AC-R5: real long-session behaviour (compaction) has no evidence yet.
+3. B-REGEX-TIMEOUT.
+4. Streaming for the OpenAI provider.
+5. B-BENCH.
+
 ## 2026-10-28 — Release 0.1.0 gate evidence
 
 Commit under release: `cdd45b3` plus the version/CHANGELOG bump in PR #16.
