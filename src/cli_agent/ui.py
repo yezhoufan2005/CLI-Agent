@@ -16,7 +16,13 @@ DIFF_LINES = 30
 # C0/C1 control characters except tab and newline. Model-supplied text is shown
 # with these escaped, so escape sequences or carriage returns cannot make an
 # approval prompt display something other than what will run.
-_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+# Also bidi overrides/isolates and zero-width characters, which can make text
+# display in a different order than it runs, and lone surrogates, which cannot
+# be written to a UTF-8 terminal at all.
+_CONTROL = re.compile(
+    r"[\x00-\x08\x0b-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff"
+    r"\ud800-\udfff]"
+)
 
 
 def escape_controls(text: str, *, keep_newlines: bool = True) -> str:
@@ -120,6 +126,12 @@ class TerminalUI:
             )
 
     def on_notice(self, message: str) -> None:
+        if self._streamed:
+            # A notice while streamed text is pending means that stream failed
+            # (e.g. before a retry); its partial text is not part of the answer.
+            self._end_line()
+            print(f"{self._dim}[partial response discarded]{self._reset}", file=self.out)
+            self._streamed = False
         self._end_line()
         line = escape_controls(message, keep_newlines=False)
         print(f"{self._yellow}! {line}{self._reset}", file=self.err, flush=True)
@@ -170,7 +182,10 @@ class JsonUI:
         self.out = out or sys.stdout
 
     def emit(self, event: str, **data: Any) -> None:
-        self.out.write(json.dumps({"event": event, **data}, ensure_ascii=False) + "\n")
+        line = json.dumps({"event": event, **data}, ensure_ascii=False)
+        # Lone surrogates can't be written as UTF-8; emit them as JSON escapes.
+        line = line.encode("utf-8", "backslashreplace").decode("utf-8")
+        self.out.write(line + "\n")
         self.out.flush()
 
     streams = False

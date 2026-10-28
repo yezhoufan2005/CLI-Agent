@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import stat
 import time
 from pathlib import Path
 from typing import Any
@@ -24,7 +25,12 @@ def event(name: str, **fields: Any) -> None:
 
 
 def enable(path: Path) -> None:
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK
+    fd = os.open(path, flags, 0o600)
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise OSError(f"{path} is not a regular file")
+    os.set_blocking(fd, True)
     os.fchmod(fd, 0o600)
     handler = logging.StreamHandler(os.fdopen(fd, "a", encoding="utf-8"))
     handler.setFormatter(logging.Formatter("%(message)s"))

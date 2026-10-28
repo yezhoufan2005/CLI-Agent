@@ -2,15 +2,31 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
+
+from cli_agent.tools.shell import scrubbed_env
+
+# The workspace is untrusted: its .git/config can name programs that `git status`
+# would run (core.fsmonitor, hooks via aliases). Disable them and pass no secrets.
+_GIT = [
+    "git",
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    "core.untrackedCache=false",
+    "--no-optional-locks",
+]
+_ENV = scrubbed_env(dict(os.environ))
 
 
 def git_warning(root: Path) -> str | None:
     """A warning if edits in `root` would be hard to review or undo, else None."""
     try:
         inside = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
+            [*_GIT, "-C", str(root), "rev-parse", "--is-inside-work-tree"],
+            env=_ENV,
             capture_output=True,
             text=True,
             timeout=10,
@@ -25,7 +41,8 @@ def git_warning(root: Path) -> str | None:
         )
     try:
         status = subprocess.run(
-            ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+            [*_GIT, "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+            env=_ENV,
             capture_output=True,
             text=True,
             timeout=10,

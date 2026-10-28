@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import math
 import os
 import re
 import signal
@@ -64,7 +65,12 @@ class RunShell:
     def run(self, args: dict[str, Any], ctx: ToolContext) -> ToolResult:
         command = require_str(args, "command")
         timeout = args.get("timeout", ctx.shell_timeout)
-        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout)
+            or timeout <= 0
+        ):
             raise ToolError("timeout must be a positive number")
         timeout = min(float(timeout), MAX_TIMEOUT)
         env = scrubbed_env(ctx.env or dict(os.environ))
@@ -96,8 +102,7 @@ class RunShell:
             # Whatever the command left behind (`&` jobs, setsid daemons) goes too.
             _kill_group(proc)
             _reap_orphans(before)
-            out.seek(0)
-            raw = out.read(4_000_000)
+            raw = _read_head_tail(out, 2_000_000)
         text = truncate(raw.decode("utf-8", errors="replace"))
         if stopped == "timeout":
             return ToolResult(
@@ -111,6 +116,18 @@ class RunShell:
             )
         header = f"exit code: {code}"
         return ToolResult(f"{header}\n{text}" if text else header, is_error=code != 0)
+
+
+def _read_head_tail(fh: Any, half: int) -> bytes:
+    """The first and last `half` bytes; errors usually sit at the end of output."""
+    size = fh.seek(0, os.SEEK_END)
+    fh.seek(0)
+    if size <= 2 * half:
+        return bytes(fh.read())
+    head = fh.read(half)
+    fh.seek(size - half)
+    marker = f"\n\n[... {size - 2 * half} bytes omitted ...]\n\n".encode()
+    return bytes(head + marker + fh.read())
 
 
 def _wait(proc: subprocess.Popen[bytes], out_fd: int, timeout: float) -> tuple[int, str]:
@@ -172,8 +189,10 @@ def _child_pids() -> set[int]:
 
 def _reap_orphans(before: set[int]) -> None:
     """Kill and reap descendants that escaped the process group and were
-    re-parented to us. Killing one can orphan its own children, so repeat."""
-    for _ in range(10):
+    re-parented to us. Killing one can orphan its own children, so repeat
+    until a scan finds none (bounded in time, not in depth)."""
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
         orphans = _child_pids() - before
         if not orphans:
             return
