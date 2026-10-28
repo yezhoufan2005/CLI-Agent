@@ -1,0 +1,45 @@
+name: release
+
+# Push a tag vX.Y.Z whose version matches pyproject.toml. The workflow runs the
+# full quality gate, builds sdist + wheel, smoke-tests the wheel, and publishes
+# a GitHub Release with the artifacts and the matching CHANGELOG section.
+# Publishing to PyPI is deliberately not automated (no credentials; see docs/release.md).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - name: Tag must match package version
+        run: |
+          version=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME != v$version"; exit 1; }
+          grep -q "^__version__ = \"$version\"" src/cli_agent/__init__.py
+      - run: ./scripts/check.sh
+      - run: uv build
+      - name: Smoke-test the wheel in a clean venv
+        run: |
+          uv venv /tmp/v
+          uv pip install --python /tmp/v/bin/python dist/*.whl
+          /tmp/v/bin/cli-agent --version
+      - name: Extract release notes
+        run: ./scripts/release-notes.sh "${GITHUB_REF_NAME#v}" > /tmp/notes.md
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file /tmp/notes.md --verify-tag
