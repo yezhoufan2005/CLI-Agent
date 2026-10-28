@@ -13,7 +13,7 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | B-RELEASE | P0 | doing | Release workflow: tag `v*` → build wheel/sdist, GitHub Release with notes; CHANGELOG | Dry-run release on a tag; install from release asset works |
 | B-GIT-SAFETY | P1 | todo | Warn at start when workspace is not a git repo or has uncommitted changes in write modes | CLI test |
 | B-DIFF | P1 | done | Show a unified diff of each edit/write in the terminal UI (and in approval prompts) | UI unit test |
-| B-E2E-MORE | P1 | todo | More E2E tasks: multi-file change, recover from failing command, large file paging, denied action | e2e passes ≥ 90% over 2 runs |
+| B-E2E-MORE | P1 | done | More E2E tasks: multi-file change, recover from failing command, large file paging, denied action | e2e passes ≥ 90% over 2 runs |
 | B-OPENAI | P1 | todo | OpenAI-compatible Chat Completions provider | Contract tests; e2e via a compatible endpoint if available |
 | B-LOG | P1 | todo | `--debug` log file with request timing, retries, tool durations (no secrets, no content by default) | Test that log has no secret values |
 | B-SANDBOX | P1 | todo | Optional bubblewrap sandbox for `run_shell` (read-only root, writable workspace, no network option) | Tests on a host with userns (CI ubuntu?) ; skip with clear message otherwise |
@@ -23,3 +23,4 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | B-PARALLEL | P2 | todo | Run independent read-only tool calls concurrently | Agent test |
 | B-PROC-LIMITS | P1 | done | Kill processes that escape the shell's process group (setsid/nohup) at timeout; cap the on-disk output spool | Test: `setsid sleep` child is gone after timeout; spool ≤ limit |
 | B-REGEX-TIMEOUT | P2 | todo | Bound search_files time for pathological regexes (subprocess or deadline) | Test with `(a+)+$` on a long line returns within N s |
+| B-E2E-HARD | P1 | todo | Harder E2E tasks that current models can fail (ambiguous bug, multi-step refactor with tests, long session needing compaction) so the suite discriminates | ≥ 1 task fails for a weaker model, or document why not |

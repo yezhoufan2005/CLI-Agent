@@ -7,13 +7,19 @@ cd "$(dirname "$0")/.."
 MODEL="${1:-${CLI_AGENT_MODEL:-claude-sonnet-4-6}}"
 STATE=$(mktemp -d)
 pass=0 fail=0
+FILTER="${E2E_FILTER:-}"
 for task in tests/e2e/*/; do
+  [ -n "$FILTER" ] && [[ "$(basename "$task")" != *$FILTER* ]] && continue
   name=$(basename "$task")
   work=$(mktemp -d)
   cp -r "$task/repo/." "$work/"
   start=$(date +%s)
+  extra=()
+  # Optional per-task flags, one shell word per whitespace-separated token.
+  [ -f "$task/args.txt" ] && read -r -a extra < "$task/args.txt"
   XDG_STATE_HOME="$STATE" timeout 600 uv run --quiet cli-agent -C "$work" --mode auto \
-    --model "$MODEL" --json "$(cat "$task/prompt.txt")" > "$work/.events.jsonl" 2>"$work/.stderr"
+    --model "$MODEL" "${extra[@]}" --json "$(cat "$task/prompt.txt")" \
+    > "$work/.events.jsonl" 2>"$work/.stderr"
   code=$?
   if (cd "$work" && bash "$OLDPWD/$task/verify.sh") >"$work/.verify" 2>&1; then
     result=PASS; pass=$((pass + 1))

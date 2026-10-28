@@ -1,0 +1,1 @@
+settings.txt is a large file. Find the value of MAGIC_THRESHOLD in it and write just that number to answer.txt.
