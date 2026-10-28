@@ -69,7 +69,7 @@ class UI(Protocol):
 
 @dataclass
 class RunResult:
-    status: Literal["done", "max_turns", "max_tokens", "refusal", "error", "interrupted"]
+    status: Literal["done", "max_turns", "max_tokens", "budget", "refusal", "error", "interrupted"]
     final_text: str = ""
     turns: int = 0
     error: str = ""
@@ -84,6 +84,8 @@ class Agent:
     ui: UI
     system: str
     max_turns: int = 50
+    max_session_tokens: int | None = None
+    """Stop once the session's input+output tokens reach this (a cost budget)."""
     max_tokens: int = 8192
     retry: RetryPolicy = field(default_factory=RetryPolicy)
     context_chars: int = DEFAULT_CONTEXT_CHARS
@@ -107,6 +109,14 @@ class Agent:
             while True:
                 if turns >= self.max_turns:
                     return RunResult("max_turns", last_text, turns, f"stopped after {turns} turns")
+                spent = session.usage.input_tokens + session.usage.output_tokens
+                if self.max_session_tokens is not None and spent >= self.max_session_tokens:
+                    return RunResult(
+                        "budget",
+                        last_text,
+                        turns,
+                        f"token budget reached ({spent} of {self.max_session_tokens})",
+                    )
                 turns += 1
                 elided = compact_history(session.messages, self.context_chars)
                 if elided:

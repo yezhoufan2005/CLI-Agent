@@ -44,6 +44,7 @@ _STATUS_EXIT = {
     "refusal": EXIT_ERROR,
     "max_turns": EXIT_INCOMPLETE,
     "max_tokens": EXIT_INCOMPLETE,
+    "budget": EXIT_INCOMPLETE,
     "interrupted": EXIT_INTERRUPTED,
 }
 
@@ -84,6 +85,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--json", action="store_true", help="emit JSON-lines events on stdout")
     p.add_argument("--max-turns", type=int, help="maximum model turns per prompt")
+    p.add_argument(
+        "--max-session-tokens",
+        type=int,
+        metavar="N",
+        help="stop when the session has used N input+output tokens (cost cap)",
+    )
     p.add_argument(
         "--allow",
         action="append",
@@ -249,6 +256,11 @@ def main(argv: list[str] | None = None) -> int:
             _err("--max-turns must be positive")
             return EXIT_USAGE
         cfg.max_turns = args.max_turns
+    if args.max_session_tokens is not None:
+        if args.max_session_tokens < 1:
+            _err("--max-session-tokens must be positive")
+            return EXIT_USAGE
+        cfg.max_session_tokens = args.max_session_tokens
     store = SessionStore()
     if sub == "sessions":
         if args.limit < 0:
@@ -325,6 +337,7 @@ def main(argv: list[str] | None = None) -> int:
         ui=ui,
         system=build_system_prompt(root),
         max_turns=cfg.max_turns,
+        max_session_tokens=cfg.max_session_tokens,
         context_chars=cfg.context_chars,
         max_tokens=cfg.max_tokens,
         save=store.save,
