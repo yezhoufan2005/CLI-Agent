@@ -17,7 +17,7 @@ How work on this repository is selected, executed, verified, and recorded. Appli
 4. Implement the smallest coherent change.
 5. Verify: `./scripts/check.sh` must pass. For behaviour that depends on a real model, also run `./scripts/e2e.sh` locally and record the result line.
 6. Challenge: for changes to permissions, path confinement, shell execution, config trust, or session persistence, get an independent review (a fresh reviewer agent given the diff and the relevant spec, not the author's rationale). Fix or record every finding.
-7. Integrate: branch → PR → CI green → merge (squash). Small doc-only or emergency fixes may go straight to `main` if `check.sh` passed locally.
+7. Integrate: branch → PR → `gh pr merge N --squash --auto`. The `main` ruleset requires every CI job to pass and has no bypass, so nothing (including doc-only changes) lands on `main` without green CI. Never merge with a red or pending check.
 8. Record: update backlog status and append to `docs/progress.md`.
 
 ## Verification vocabulary

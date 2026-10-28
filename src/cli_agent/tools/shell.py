@@ -97,12 +97,14 @@ class RunShell:
 
 
 def _kill_group(proc: subprocess.Popen[bytes]) -> None:
+    # killpg can fail with ESRCH once the group is gone, and on macOS with EPERM
+    # when only zombies remain in it; either way there is nothing left to kill.
     try:
         os.killpg(proc.pid, signal.SIGTERM)
         proc.wait(timeout=3)
-    except (ProcessLookupError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired):
         pass
     try:
         os.killpg(proc.pid, signal.SIGKILL)
-    except ProcessLookupError:
+    except OSError:
         pass

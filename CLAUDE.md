@@ -26,5 +26,5 @@ cli-agent: a Python 3.11+ terminal coding agent. Mission: `instruction.md`. Run 
 
 ## Conventions
 - Dependencies pinned exactly in `pyproject.toml`; `uv.lock` committed.
-- Small PRs; squash merge; message says why. Record progress in `docs/progress.md`.
+- Small PRs; `gh pr merge N --squash --auto` (ruleset requires all CI jobs, no bypass); message says why. Record progress in `docs/progress.md`.
 - Repo is public: no secrets in commits, issues, logs.
