@@ -29,6 +29,7 @@ from cli_agent.ui import JsonUI, TerminalUI
 from cli_agent.workspace import git_warning
 
 SUBCOMMANDS = ("sessions", "doctor", "undo")
+DEFAULT_SESSIONS_LIMIT = 50
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -102,6 +103,13 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         metavar="FILE",
         help="append a JSON-lines debug log (timings, tokens, decisions; no content)",
+    )
+    p.add_argument(
+        "--limit",
+        type=int,
+        default=DEFAULT_SESSIONS_LIMIT,
+        metavar="N",
+        help="with 'sessions': show at most N sessions, 0 = all (default: %(default)s)",
     )
     p.add_argument("-v", "--verbose", action="store_true", help="show tool output")
     p.add_argument("--version", action="version", version=f"cli-agent {__version__}")
@@ -177,12 +185,12 @@ def cmd_undo(cps: Checkpoints) -> int:
     return EXIT_OK
 
 
-def cmd_sessions(store: SessionStore) -> int:
+def cmd_sessions(store: SessionStore, limit: int = DEFAULT_SESSIONS_LIMIT) -> int:
     sessions = store.list()
     if not sessions:
         print("no saved sessions")
         return EXIT_OK
-    for s in sessions[:50]:
+    for s in sessions if limit == 0 else sessions[:limit]:
         print(f"{s.id}  {s.updated[:19]}  {s.cwd}  {s.title}")
     return EXIT_OK
 
@@ -242,7 +250,10 @@ def main(argv: list[str] | None = None) -> int:
         cfg.max_turns = args.max_turns
     store = SessionStore()
     if sub == "sessions":
-        return cmd_sessions(store)
+        if args.limit < 0:
+            _err("--limit must be 0 or positive")
+            return EXIT_USAGE
+        return cmd_sessions(store, args.limit)
     if sub == "doctor":
         return cmd_doctor(cfg)
 

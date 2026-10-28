@@ -2,6 +2,12 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — Dogfooding: cli-agent changed its own code (PR #23)
+
+- Task given to `cli-agent --mode auto` (claude-sonnet-4-6) on a clone of this repo: add `--limit N` to `sessions` with a CLI test, and run `./scripts/check.sh`.
+- Result: done in 5 turns (82k input tokens). The agent edited `cli.py` and `tests/test_cli.py` and ran the gate itself. Its summary honestly noted that the default cap of 50 was tested only indirectly and that it had not updated progress.md.
+- Reviewed by hand (diff is idiomatic, negative values give exit 2). `check.sh` was re-run independently: 191 passed. Landed unchanged in PR #23.
+
 ## 2026-10-28 — Regex bound, undo (PRs #20–#21)
 
 - PR #20 (B-REGEX-TIMEOUT): `search_files` runs in a spawned child process with a 30 s limit (CI: catastrophic `(a+)+$` returns an error in under 10 s). Costs about 25 ms per search. `__main__` gained an import guard, which spawn requires; covered by a CLI test of `python -m cli_agent` and checked manually from an installed wheel.
