@@ -202,3 +202,26 @@ def test_config_rejects_bad_files(tmp_path: Path, content: str) -> None:
 def test_config_missing_explicit_file(tmp_path: Path) -> None:
     with pytest.raises(ConfigError):
         load_config(tmp_path / "nope.toml", environ={})
+
+
+def test_session_save_fixes_loose_temp_permissions(tmp_path: Path) -> None:
+    store = SessionStore(tmp_path)
+    store.dir.mkdir(parents=True)
+    leftover = store.dir / "abc.json.tmp"
+    leftover.write_text("{}")
+    leftover.chmod(0o644)
+    store.save(Session(id="abc", cwd="/w", model="m"))
+    assert (store.dir / "abc.json").stat().st_mode & 0o777 == 0o600
+
+
+def test_project_instructions_skip_symlinks(tmp_path: Path) -> None:
+    from cli_agent.prompt import build_system_prompt
+
+    outside = tmp_path / "outside.md"
+    outside.write_text("SECRET-CONTENT")
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "AGENTS.md").symlink_to(outside)
+    (ws / "CLAUDE.md").write_text("use tabs")
+    prompt = build_system_prompt(ws)
+    assert "SECRET-CONTENT" not in prompt and "use tabs" in prompt

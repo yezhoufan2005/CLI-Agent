@@ -100,6 +100,27 @@ def make_provider(cfg: Config) -> Provider:
     )
 
 
+def harden_process() -> bool:
+    """Stop child processes from reading our credentials out of /proc.
+
+    Shell commands run as the same user, so without this a command could read
+    /proc/$PPID/environ (which still holds ANTHROPIC_API_KEY even after
+    os.environ is scrubbed) or /proc/$PPID/mem. PR_SET_DUMPABLE=0 makes those
+    files owned by root; children get a normal dumpable flag again on exec.
+    Linux only; returns whether it took effect.
+    """
+    if not sys.platform.startswith("linux"):
+        return False
+    import ctypes
+
+    pr_set_dumpable = 4
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        return int(libc.prctl(pr_set_dumpable, 0, 0, 0, 0)) == 0
+    except (OSError, AttributeError):
+        return False
+
+
 def _err(msg: str) -> None:
     print(f"cli-agent: {msg}", file=sys.stderr)
 
@@ -149,6 +170,7 @@ def main(argv: list[str] | None = None) -> int:
     except ConfigError as err:
         _err(str(err))
         return EXIT_USAGE
+    harden_process()
     if args.mode:
         cfg.mode = args.mode
     if args.model:
@@ -193,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
 
     ui = JsonUI() if args.json else TerminalUI(interactive=can_ask, verbose=args.verbose)
     policy = PermissionPolicy(
-        mode=cfg.mode, allow=cfg.allow + args.allow, deny=cfg.deny + args.deny
+        root=root, mode=cfg.mode, allow=cfg.allow + args.allow, deny=cfg.deny + args.deny
     )
     agent = Agent(
         provider=provider,

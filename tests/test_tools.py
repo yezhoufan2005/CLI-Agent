@@ -158,6 +158,19 @@ def test_shell_env_scrubbed(ctx: ToolContext) -> None:
     }
     res = RunShell().run({"command": "env"}, ctx).content
     assert "sk-secret" not in res and "GH_TOKEN" not in res and "HARMLESS=ok" in res
+    for name in (
+        "DB_PASS",
+        "AWS_ACCESS_KEY_ID",
+        "NPM_AUTH",
+        "DATABASE_URL",
+        "SSH_AUTH_SOCK",
+        "SENTRY_DSN",
+        "ANTHROPIC_AUTH_TOKEN",
+        "GITHUB_TOKEN",
+    ):
+        assert name not in scrubbed_env({name: "x"}), name
+    for name in ("PATH", "HOME", "PASSAGE", "AUTHOR", "LANG"):
+        assert name in scrubbed_env({name: "x"}), name
     assert scrubbed_env({"MY_PASSWORD": "x", "A": "b"}) == {
         "A": "b",
         "PAGER": "cat",
@@ -182,3 +195,49 @@ def test_truncate_keeps_tail() -> None:
     out = truncate(text, 30)
     assert out.endswith("END") and out.startswith("A") and "omitted" in out
     assert truncate("short", 30) == "short"
+
+
+def test_atomic_write_ignores_planted_temp_symlink(ctx: ToolContext) -> None:
+    outside = ctx.root.parent / f"{ctx.root.name}-victim"
+    outside.write_text("original")
+    # The old implementation used a predictable temp name; plant links at it anyway.
+    (ctx.root / ".a.txt.cli-agent.tmp").symlink_to(outside)
+    WriteFile().run({"path": "a.txt", "content": "new"}, ctx)
+    assert outside.read_text() == "original"
+    assert (ctx.root / "a.txt").read_text() == "new"
+    assert sorted(p.name for p in ctx.root.iterdir()) == [".a.txt.cli-agent.tmp", "a.txt"]
+
+
+def test_new_file_mode_respects_umask(ctx: ToolContext) -> None:
+    WriteFile().run({"path": "n.txt", "content": "x"}, ctx)
+    mode = (ctx.root / "n.txt").stat().st_mode & 0o777
+    current = os.umask(0)
+    os.umask(current)
+    assert mode == 0o666 & ~current
+
+
+def test_list_and_search_skip_symlinks(ctx: ToolContext) -> None:
+    secret = ctx.root.parent / f"{ctx.root.name}-secret.txt"
+    secret.write_text("TOPSECRET\n")
+    (ctx.root / "link.txt").symlink_to(secret)
+    (ctx.root / "real.txt").write_text("hello\n")
+    assert SearchFiles().run({"pattern": "TOPSECRET"}, ctx).content == "(no matches)"
+    assert ListFiles().run({}, ctx).content == "real.txt"
+    with pytest.raises(ToolError, match="outside"):
+        ReadFile().run({"path": "link.txt"}, ctx)
+
+
+def test_read_rejects_special_files(ctx: ToolContext) -> None:
+    os.mkfifo(ctx.root / "fifo")
+    with pytest.raises(ToolError, match="regular file"):
+        ReadFile().run({"path": "fifo"}, ctx)
+
+
+def test_walk_limit(ctx: ToolContext, monkeypatch: pytest.MonkeyPatch) -> None:
+    import cli_agent.tools.files as files
+
+    monkeypatch.setattr(files, "MAX_WALK_FILES", 3)
+    for i in range(5):
+        (ctx.root / f"f{i}.txt").write_text("x\n")
+    files_found, truncated = files._walk(ctx.root, ctx.root, limit=3)
+    assert len(files_found) == 3 and truncated

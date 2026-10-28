@@ -14,6 +14,7 @@ def run_cli(
     script: list,
     *args: str,
     stdin: str | None = None,
+    extra_env: dict[str, str] | None = None,
     config: str = 'provider = "fake"\n',
 ) -> subprocess.CompletedProcess[str]:
     work = tmp_path / "work"
@@ -29,6 +30,7 @@ def run_cli(
         "CLI_AGENT_CONFIG": str(cfg),
         "CLI_AGENT_FAKE_SCRIPT": str(script_path),
     }
+    env.update(extra_env or {})
     return subprocess.run(
         [sys.executable, "-m", "cli_agent", "-C", str(work), *args],
         input=stdin if stdin is not None else "",
@@ -131,3 +133,22 @@ def test_subcommands(tmp_path: Path, sub: str) -> None:
 def test_version(tmp_path: Path) -> None:
     r = run_cli(tmp_path, [], "--version")
     assert r.returncode == 0 and r.stdout.startswith("cli-agent ")
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="/proc is Linux-only")
+def test_shell_cannot_read_agent_environ(tmp_path: Path) -> None:
+    # The agent's own environment holds credentials; a child command must not be
+    # able to read them back through /proc/$PPID/environ.
+    cmd = "cat /proc/$PPID/environ | tr '\\0' '\\n' | grep -c FAKE_TOKEN_VALUE || true"
+    script = [
+        {"tool_calls": [{"name": "run_shell", "input": {"command": cmd}}]},
+        {"text": "done"},
+    ]
+    env_extra = {"MY_API_TOKEN": "FAKE_TOKEN_VALUE"}
+    r = run_cli(tmp_path, script, "--mode", "auto", "--json", "go", extra_env=env_extra)
+    assert r.returncode == 0, r.stderr
+    outputs = [json.loads(x) for x in r.stdout.splitlines()]
+    shell_out = next(e["output"] for e in outputs if e["event"] == "tool_end")
+    assert "FAKE_TOKEN_VALUE" not in shell_out
+    # bash's $PPID is the agent; reading its environ must fail or find nothing.
+    assert "Permission denied" in shell_out or shell_out.strip().endswith("0")

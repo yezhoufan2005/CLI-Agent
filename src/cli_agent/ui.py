@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from typing import IO, Any
 
@@ -11,6 +12,18 @@ from cli_agent.messages import ToolUseBlock
 from cli_agent.tools import ToolResult
 
 PREVIEW_LINES = 8
+# C0/C1 control characters except tab and newline. Model-supplied text is shown
+# with these escaped, so escape sequences or carriage returns cannot make an
+# approval prompt display something other than what will run.
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+
+
+def escape_controls(text: str, *, keep_newlines: bool = True) -> str:
+    def esc(m: re.Match[str]) -> str:
+        return repr(m.group())[1:-1]
+
+    out = _CONTROL.sub(esc, text)
+    return out if keep_newlines else out.replace("\n", "\\n")
 
 
 def _preview(text: str, lines: int = PREVIEW_LINES) -> str:
@@ -47,42 +60,60 @@ class TerminalUI:
         print(text, file=self.out, flush=True)
 
     def on_tool_start(self, call: ToolUseBlock, summary: str) -> None:
-        print(f"{self._dim}● {summary}{self._reset}", file=self.err, flush=True)
+        line = escape_controls(summary, keep_newlines=False)
+        print(f"{self._dim}● {line}{self._reset}", file=self.err, flush=True)
 
     def on_tool_end(self, call: ToolUseBlock, result: ToolResult) -> None:
         if result.is_error:
-            print(f"{self._red}  ✗ {_preview(result.content, 4)}{self._reset}", file=self.err)
+            text = escape_controls(_preview(result.content, 4))
+            print(f"{self._red}  ✗ {text}{self._reset}", file=self.err)
         elif self.verbose:
-            print(f"{self._dim}{_preview(result.content)}{self._reset}", file=self.err)
-
-    def on_notice(self, message: str) -> None:
-        print(f"{self._yellow}! {message}{self._reset}", file=self.err, flush=True)
-
-    def approve(self, call: ToolUseBlock, summary: str) -> Approval:
-        if not self.interactive:
-            self.on_notice(f"not approved (non-interactive): {summary}")
-            return "no"
-        print(f"{self._yellow}? approve: {summary}{self._reset}", file=self.err)
-        if call.name in ("write_file",) and isinstance(call.input.get("content"), str):
-            print(_preview(call.input["content"], 20), file=self.err)
-        elif call.name == "edit_file":
             print(
-                f"{self._red}- {_preview(str(call.input.get('old_string')), 10)}{self._reset}",
+                f"{self._dim}{escape_controls(_preview(result.content))}{self._reset}",
                 file=self.err,
             )
-            print(f"+ {_preview(str(call.input.get('new_string')), 10)}", file=self.err)
+
+    def on_notice(self, message: str) -> None:
+        line = escape_controls(message, keep_newlines=False)
+        print(f"{self._yellow}! {line}{self._reset}", file=self.err, flush=True)
+
+    def _show_call(self, call: ToolUseBlock, full: bool) -> None:
+        if call.name == "write_file" and isinstance(call.input.get("content"), str):
+            body = call.input["content"]
+            print(escape_controls(body if full else _preview(body, 20)), file=self.err)
+        elif call.name == "edit_file":
+            old, new = str(call.input.get("old_string")), str(call.input.get("new_string"))
+            if not full:
+                old, new = _preview(old, 10), _preview(new, 10)
+            print(f"{self._red}- {escape_controls(old)}{self._reset}", file=self.err)
+            print(f"+ {escape_controls(new)}", file=self.err)
+
+    def approve(self, call: ToolUseBlock, summary: str) -> Approval:
+        line = escape_controls(summary, keep_newlines=False)
+        if not self.interactive:
+            self.on_notice(f"not approved (non-interactive): {line}")
+            return "no"
+        print(f"{self._yellow}? approve: {line}{self._reset}", file=self.err)
+        self._show_call(call, full=False)
         while True:
-            print("  [y]es / [n]o / [a]lways for this session: ", end="", file=self.err, flush=True)
-            line = self.inp.readline()
-            if not line:
+            print(
+                "  [y]es / [n]o / [a]lways for this session / [v]iew full: ",
+                end="",
+                file=self.err,
+                flush=True,
+            )
+            reply = self.inp.readline()
+            if not reply:
                 return "no"
-            answer = line.strip().lower()
+            answer = reply.strip().lower()
             if answer in ("y", "yes"):
                 return "yes"
             if answer in ("n", "no", ""):
                 return "no"
             if answer in ("a", "always"):
                 return "always"
+            if answer in ("v", "view"):
+                self._show_call(call, full=True)
 
 
 class JsonUI:
