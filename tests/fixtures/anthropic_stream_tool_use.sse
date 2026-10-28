@@ -1,0 +1,164 @@
+event: message_start
+data: {"message":{"content":[],"id":"msg_74a77a1535ed418e887fac3d54e6e9d8","model":"claude-haiku-5.5","role":"assistant","stop_reason":null,"stop_sequence":null,"type":"message","usage":{"input_tokens":356,"output_tokens":1}},"type":"message_start"}
+
+
+event: content_block_start
+data: {"content_block":{"text":"","type":"text"},"index":0,"type":"content_block_start"}
+
+
+event: ping
+data: {"type":"ping"}
+
+
+event: content_block_start
+data: {"content_block":{"thinking":"","type":"thinking"},"index":1,"type":"content_block_start"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":"I","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":" just","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":" need","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":" to say","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":" a","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":" short sentence and then call","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":" read_file","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":" on README","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":".md. The earlier od","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":"d ass","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":"istant message and","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":" the \"","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":"CRITICAL\" inst","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":"ruction about tool call","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":" sizes a","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":"ren't relevant to this sim","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":"ple request,","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":" so I'll dis","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":"regard them","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":" and pro","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":"ceed with","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":" the task as","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"thinking":" asked.\n\n","type":"thinking_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"signature":"CAQSjgkKEggTEAEYAjgBQgh0aGlua2luZxIM7UmDN8sH1uOicKQUGgzXBF0d0DgEVqNJSEwiMIYuZSMbW2/5jejmp63kcW4QUEl8+bmFqMhodNCqlRwSDW+bIPgFaGYrcZ3/CqYANyqpCIwQ8J/VqL0xj6OvxV3MeP66rAyrtjLWqlalfHYTDeCv8MuL0HkBbtlPc4dIgq+/3URxdfgMXor+ptO7/WGABRvsIDHBtxuoxGlOrOysQJH6X3N3DsSIlWzgnNnztIccTDkoPhnuIRVmGN5wqQVTt/KeTe6mq6p1wiBBZuUvGMvi1kwpo0OxSB8jukz5QPovisfQtbBTQsO0iOT9O/nDau6afy12fTBM91YmwdxrqtI2YyWGTgNjtVgVBApzmy6E+fLLmmBKYw55vMIfwxlTdDpPXb06UIsqmgs655M/2WduKgugamHrMFQw/toRPd57SCw/pMJEqbQBqlaSTk4BUGTPoKXaEUJP4OfGs9perl0NRRS0/Ws6TwOyVDuEQTrjOdcCM157TyadJRxcSJUwgCQG1BBRK+nB5Jx3UlzhQEYnlbju9E9ezguknSAqZrwjtK1YhQhUQKi2WpbOTPAlXbtTrCSCrBirgfF2E0qf1VwjSRPjHs4/u3IrxsaqKIEIYeSZIdin7aKgjI7Of9RxJ8uw6LvEpnjqRV2ZULVJYT59SiyZ9AmQT/LuQH+Xnu/NJ3HlV50YxYdY2zkf3AetQXAsU0DiRW507AM5iwTJ9CL8C8cNeD8wrq/NtqKYH7p+IpxRowYiZaNSEh2yhTBUmVZ+zTPCLlKHjjpoJevLMB1ugB7PqD6OnpqGKDA+t7IyN6z+QQ/dFyLABVoeUvpa40jXE1NfENW31O/plXsDYAC3llRvIswyCy3x+91gDXX/O6NqYUhcIiUwpaLrFJcb1ulBuIP4c5odmZ+YcGbQLAPv0dxS3NG1nfCuMdZWBkcgXLZq+hzor8aqjCecWa5o/YqcdaANHN91El0AJSGc+kiHWTXEnEawysjcYK5L5vbNYGpWP0kMQ/cYgm+a2sY2PhDXP7gf37/Xij5uheM1XsVt57CHBViWZHT2nxmtCLgdrCw3u+eloHFSGkFwPp7g39kaZ+fR2fDz4Jk4KJzJYxa3yckZcV3QvEqh7Cxqs81qOYdfcBRbQmk0RpTbCnayXX/G1ozcyMOKDaTTlFx21+4I7dyPl+q96NZGny7n7zgUvH8T5ulag7LFyPpTWV1j2FDixRY/y07Hp9NOGnPq6ILdDoQeDrnaYvFYDO7m3jn/OcHdsSXkxINrD4DhJj+C5PX4vrrd4tM9T2TQouNTQYqQvZLUkHVYQw1757GuAsa6OqfERKKh9W0RaxOEm7lzXXHzQPMyK3hR0PX9qc9zG7g4/u5GCiKhltUfGiOTn13otT3bT3Orl2QoFr9ols077LgOaXS9EXmHH2QuIfGTTUwIJWZ2h3Mn2OkkerkvW2MVwC0cz9pJHkM1xoRdZNtGcTh3DHJOSomsLIidSU7tBWMz0EDn4+x4S8JtnrX+CfMFhCnd4B3/ZTA52hgB","type":"signature_delta"},"index":1,"type":"content_block_delta"}
+
+
+event: content_block_stop
+data: {"index":1,"type":"content_block_stop"}
+
+
+event: content_block_delta
+data: {"delta":{"text":"Re","type":"text_delta"},"index":0,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"text":"ading README","type":"text_delta"},"index":0,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"text":".md now.","type":"text_delta"},"index":0,"type":"content_block_delta"}
+
+
+event: content_block_stop
+data: {"index":0,"type":"content_block_stop"}
+
+
+event: content_block_start
+data: {"content_block":{"id":"toolu_bdrk_01Qud8fbPvQeQTP6oktMgXUp","input":{},"name":"read_file","type":"tool_use"},"index":2,"type":"content_block_start"}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"{\"pat","type":"input_json_delta"},"index":2,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"h\": \"","type":"input_json_delta"},"index":2,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"README.md","type":"input_json_delta"},"index":2,"type":"content_block_delta"}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"\"}","type":"input_json_delta"},"index":2,"type":"content_block_delta"}
+
+
+event: content_block_stop
+data: {"index":2,"type":"content_block_stop"}
+
+
+event: message_delta
+data: {"delta":{"stop_reason":"tool_use","stop_sequence":null},"type":"message_delta","usage":{"input_tokens":7443,"output_tokens":115}}
+
+
+event: message_stop
+data: {"type":"message_stop"}
+
+

@@ -40,6 +40,7 @@ class Provider(Protocol):
         messages: list[Message],
         tools: list[ToolSpec],
         max_tokens: int,
+        on_text: Callable[[str], None] | None = None,
     ) -> Completion: ...
 
 

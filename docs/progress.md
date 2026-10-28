@@ -2,6 +2,16 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — Run 1, session 1: streaming (PR #3)
+
+- Anthropic adapter streams over SSE when the UI wants deltas (terminal UI); `--json` mode stays non-streaming. Handles `ping`, unknown events/deltas (ignored), mid-stream `error` (retryable for overloaded/api/rate-limit), stream cut before `message_stop` (retryable), malformed events (retryable), `model_context_window_exceeded` (→ max_tokens).
+- Tool calls whose JSON arguments were cut off (max_tokens) are marked incomplete and answered with an error result instead of running with `{}`.
+- Verified (CI): `tests/test_streaming.py` replays a real recorded stream (`tests/fixtures/anthropic_stream_tool_use.sse`: text + thinking + ping + tool_use with input_json_delta) plus synthetic edge cases; 133 tests pass.
+- Verified (manual): real-model one-shot run streamed text to stdout; SIGINT at 4 s mid-stream → "interrupted", session saved with valid history.
+- Verified (E2E): `scripts/e2e.sh` → `pass=3 fail=0`. Note e2e uses `--json`, i.e. the non-streaming path; real-model streaming is covered only by the manual run above.
+
+Next: B-RELEASE (release workflow + CHANGELOG), then P1: B-GIT-SAFETY, B-DIFF, B-E2E-MORE, B-PROC-LIMITS.
+
 ## 2026-10-28 — Run 1, session 1: security review fixes (PR #2)
 
 An independent reviewer agent (given the code and the AC-S* criteria, not the author's reasoning) reported 14 findings; the first five were reproduced with a script. Status:
