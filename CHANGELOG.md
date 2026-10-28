@@ -4,6 +4,8 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+## 0.1.0 — 2026-10-28
+
 ### Added
 - Agent loop with six tools: `read_file`, `list_files`, `search_files`, `write_file`, `edit_file`, `run_shell`.
 - Permission modes `read-only`, `ask`, `auto-edit`, `auto`; allow/deny rules; built-in guard for catastrophic shell commands; `.git/` writes always ask.
@@ -20,4 +22,12 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 ### Security
 - Workspace confinement for file tools (symlinks resolved; list/search skip symlinks).
 - Credential-like environment variables are removed from shell commands; on Linux the agent is non-dumpable so commands cannot read its environment through `/proc`.
-- Shell commands are not sandboxed (documented limitation).
+- Startup git check disables repository-configured programs (`core.fsmonitor`) and runs without credentials.
+- Shell commands are not sandboxed by default; `--sandbox` is opt-in and Linux-only.
+
+### Known limitations
+- Context management only elides old tool output; it has unit tests but no real-model test on very long sessions.
+- The OpenAI-compatible provider does not stream and has not been tested against a real endpoint (contract tests only).
+- The E2E suite (10 tasks) passes on both claude-haiku-4-5 and claude-sonnet-4-6, so it is a regression check, not a capability benchmark.
+- On macOS, background processes started with `setsid` can outlive a command (orphan reaping is Linux-only).
+- Shell allow/deny rules and the built-in guard are best-effort pattern checks, not a security boundary. Use `--sandbox` for isolation.
