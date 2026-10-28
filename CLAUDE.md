@@ -7,6 +7,7 @@ cli-agent: a Python 3.11+ terminal coding agent. Mission: `instruction.md`. Run 
 2. Check open GitHub issues (esp. `needs-human`), PRs, and CI on `main` (`gh run list -L 5`).
 
 ## Commands
+- `./scripts/setup-dev.sh` once per checkout (enables the pre-commit hook).
 - `./scripts/check.sh` — the quality gate (ruff format/lint, mypy --strict, pytest). Must pass before every commit.
 - `./scripts/e2e.sh [model]` — real-model tasks in `tests/e2e/*/` (needs `ANTHROPIC_*` env; local only, never in CI).
 - `uv run cli-agent ...` — run from the checkout.

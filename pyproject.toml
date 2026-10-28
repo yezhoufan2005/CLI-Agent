@@ -31,6 +31,8 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# E2E fixture repos are test inputs for the agent, not project code.
+extend-exclude = ["tests/e2e"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "BLE", "RUF"]
