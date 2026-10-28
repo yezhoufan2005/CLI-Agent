@@ -32,8 +32,6 @@ export OPENAI_BASE_URL=http://localhost:11434/v1  # default: https://api.openai.
 cli-agent --provider openai --model qwen2.5-coder "explain src/main.py"
 ```
 
-The OpenAI-compatible provider does not stream yet; text appears when each turn completes.
-
 ## Use
 
 ```bash
