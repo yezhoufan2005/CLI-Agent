@@ -64,7 +64,11 @@ with_env_file() {
 }
 
 build() {
-  docker build -t "$IMAGE" "$ROOT/autonomy"
+  # 断网时拉取基础镜像元数据会失败；已有镜像则继续用旧镜像
+  if ! docker build -t "$IMAGE" "$ROOT/autonomy"; then
+    docker image inspect "$IMAGE" >/dev/null 2>&1 || die "image build failed"
+    echo "warning: build failed, reusing existing $IMAGE image" >&2
+  fi
 }
 
 running() {

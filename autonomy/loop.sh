@@ -6,7 +6,7 @@ HOURS="${AUTONOMY_HOURS:-12}"
 MODEL="${AUTONOMY_MODEL:-opus}"
 REPO="${AUTONOMY_REPO:?AUTONOMY_REPO is required}"
 MAX_IDLE="${AUTONOMY_MAX_IDLE_SESSIONS:-3}"
-MAX_FAILS="${AUTONOMY_MAX_FAILED_SESSIONS:-5}"
+MAX_FAILS="${AUTONOMY_MAX_FAILED_SESSIONS:-8}"
 MIN_SESSION_SECONDS="${AUTONOMY_MIN_SESSION_SECONDS:-600}"
 STATE_DIR=/home/node/.autonomy
 STOP_FILE="$STATE_DIR/STOP"
@@ -20,11 +20,36 @@ rm -f "$STOP_FILE"
 
 log() { echo "[autonomy $(date '+%F %T')] $*" | tee -a "$LOG_DIR/driver.log"; }
 
+# 网络探测：模型代理和 GitHub 都能建立连接才算在线（任何 HTTP 响应都算通）
+network_ok() {
+  curl -sS -o /dev/null --max-time 15 "${ANTHROPIC_BASE_URL:-https://api.anthropic.com}" 2>/dev/null &&
+    curl -sS -o /dev/null --max-time 15 https://api.github.com 2>/dev/null
+}
+
+# 断网期间阻塞等待，不消耗会话和失败次数；到截止时间或收到 STOP 时返回 1
+wait_for_network() {
+  local delay=15
+  network_ok && return 0
+  log "network unreachable; waiting"
+  while ! network_ok; do
+    if [ -f "$STOP_FILE" ] || [ $(( DEADLINE - $(date +%s) )) -lt "$MIN_SESSION_SECONDS" ]; then
+      return 1
+    fi
+    sleep "$delay"
+    [ "$delay" -lt 300 ] && delay=$(( delay * 2 ))
+  done
+  log "network restored"
+}
+
 if [ -z "${GH_TOKEN:-}" ]; then
   log "GH_TOKEN is not set; refusing to start."
   exit 1
 fi
+wait_for_network || { log "network never came up; exiting"; exit 1; }
 gh auth setup-git >/dev/null
+# 卡住的 HTTP 传输 60 秒内低于 1KB/s 即中止，避免 git 无限挂起
+git config --global http.lowSpeedLimit 1000
+git config --global http.lowSpeedTime 60
 if ! login=$(gh api user --jq .login 2>/dev/null); then
   log "GH_TOKEN cannot access the GitHub API; refusing to start."
   exit 1
@@ -37,12 +62,17 @@ fi
 
 if [ ! -d /workspace/.git ]; then
   log "cloning $REPO into /workspace"
-  git clone --quiet "https://github.com/$REPO.git" /workspace || { log "clone failed"; exit 1; }
+  for attempt in 1 2 3 4 5; do
+    git clone --quiet "https://github.com/$REPO.git" /workspace && break
+    rm -rf /workspace/.git
+    [ "$attempt" -eq 5 ] && { log "clone failed"; exit 1; }
+    sleep $(( attempt * 30 ))
+  done
 fi
 cd /workspace
 
 refs_fingerprint() {
-  git fetch --quiet --prune origin 2>/dev/null
+  timeout 120 git fetch --quiet --prune origin 2>/dev/null
   git for-each-ref --format='%(refname) %(objectname)' | sha256sum
 }
 
@@ -70,6 +100,8 @@ while :; do
   remaining=$(( DEADLINE - now ))
   if [ -f "$STOP_FILE" ]; then reason="STOP file present"; break; fi
   if [ "$remaining" -lt "$MIN_SESSION_SECONDS" ]; then break; fi
+  wait_for_network || continue
+  remaining=$(( DEADLINE - $(date +%s) ))
 
   session=$(( session + 1 ))
   prompt="${PROMPT_TEMPLATE//\{\{SESSION\}\}/$session}"
@@ -91,6 +123,10 @@ while :; do
 
   if [ "$code" -eq 124 ]; then break; fi
   if [ "$code" -ne 0 ]; then
+    if ! network_ok; then
+      log "session $session failed while offline; not counted as a failure"
+      continue
+    fi
     fails=$(( fails + 1 ))
     if [ "$fails" -ge "$MAX_FAILS" ]; then reason="$fails consecutive failed sessions"; break; fi
     backoff=$(( 60 * (1 << (fails - 1)) )); [ "$backoff" -gt 900 ] && backoff=900

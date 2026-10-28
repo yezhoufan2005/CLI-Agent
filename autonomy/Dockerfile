@@ -33,8 +33,12 @@ COPY loop.sh prompt.md /opt/autonomy/
 RUN chmod 755 /opt/autonomy/loop.sh
 
 USER node
+# 网络不稳定：放宽 Claude Code 的 API 重试次数和 npm 的下载重试
 ENV PATH=/home/node/.local/bin:/home/node/.npm-global/bin:/home/node/.cargo/bin:/home/node/go/bin:$PATH \
     NPM_CONFIG_PREFIX=/home/node/.npm-global \
-    DISABLE_AUTOUPDATER=1
+    DISABLE_AUTOUPDATER=1 \
+    CLAUDE_CODE_MAX_RETRIES=20 \
+    NPM_CONFIG_FETCH_RETRIES=5 \
+    NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
 WORKDIR /workspace
 CMD ["sleep", "infinity"]

@@ -24,7 +24,7 @@ Outside that scope, nothing is authorized. In particular, do not:
 - Each run lasts at most **12 hours** of wall-clock time. The container entrypoint enforces the deadline and may kill the session without warning, so commit and push checkpoints regularly.
 - A run consists of consecutive headless sessions. Each new session starts with no memory of the previous one; repository and GitHub state are the only continuity.
 - There is no token budget and no stage-completion milestone. Keep delivering verified value until the deadline.
-- The driver ends the run early after 3 consecutive sessions that change no Git ref (local or on GitHub), or 5 consecutive sessions that fail. Ending a session without any commit is treated as being stuck.
+- The driver ends the run early after 3 consecutive sessions that change no Git ref (local or on GitHub), or 8 consecutive sessions that fail while the network is up. Ending a session without any commit is treated as being stuck.
 - The owner can stop a run at any time.
 - The session driver and kickoff prompt are baked into the container image from the owner's checkout (`autonomy/loop.sh`, `autonomy/prompt.md`). Editing them here takes effect only after the owner pulls and rebuilds. `autonomy/run.sh` and `autonomy/Dockerfile` run on the owner's host, so keep any change to them minimal and explain it in the PR.
 
@@ -34,6 +34,7 @@ Outside that scope, nothing is authorized. In particular, do not:
 - `/workspace` is this repository, cloned from GitHub into a Docker volume. GitHub is the only channel through which the owner sees your work. The host filesystem, the host Docker daemon, and the owner's other credentials are not available. Docker is not available inside the container.
 - `/workspace` and `/home/node` are persistent volumes and survive across sessions and runs. User-space installs (`uv`, `npm -g` into `~/.npm-global`, `rustup`, anything under `~/.local`) persist. `sudo apt-get install` lasts only for the current run. To make a system package permanent, add it to `autonomy/Dockerfile`.
 - Outbound internet access is unrestricted, so you can research and install dependencies.
+- **The network is unreliable.** Expect transient failures of `git push`/`fetch`, `gh`, package installs, web research, and the model API. Retry with backoff before drawing conclusions; such failures are neither blockers nor reasons to open a `needs-human` issue. If a push fails, keep committing locally and push later: `/workspace` persists across sessions, and local commits count as progress. When the driver detects the network is down, it waits and does not count the session as failed.
 - `gh` is authenticated through `GH_TOKEN`, and `git push` over HTTPS uses gh as its credential helper.
 
 ## Model access for the product under development

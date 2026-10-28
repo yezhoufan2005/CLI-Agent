@@ -6,7 +6,13 @@
 
 - `run.sh start` 在宿主机上构建镜像，以后台方式启动容器 `cli-agent-autonomy`。
 - 容器内 [loop.sh](loop.sh) 在 12 小时截止前反复启动全新的 headless 会话（`claude -p --dangerously-skip-permissions`），每轮提示词见 [prompt.md](prompt.md)。每个会话都从仓库和 GitHub 状态恢复进度。
-- 运行会提前结束的情况：连续 3 个会话没有让任何 Git ref 变化，连续 5 个会话失败，或者你执行了 `stop`。
+- 运行会提前结束的情况：连续 3 个会话没有让任何 Git ref 变化，在网络正常的情况下连续 8 个会话失败，或者你执行了 `stop`。
+- 网络波动的处理分几层：
+  - Claude Code 自己会重试 API 请求，容器里把重试次数调到了 20。
+  - git 传输卡住 60 秒就中止；npm 下载会重试 5 次。
+  - 驱动在启动时和每个会话开始前探测模型代理和 GitHub。断网期间它只等待，不开新会话；断网导致的会话失败不计入失败次数。
+  - 构建镜像时如果连不上网，会继续用已有的镜像。
+  - ENVIRONMENT.md 也告诉 agent 网络不稳定：失败了先重试，推送失败就先在本地提交。
 - 仓库在容器里是从 GitHub 克隆到 Docker 卷 `cli-agent-workspace` 的副本，宿主机这份 checkout 不会被改动。agent 的成果通过 GitHub 查看，或者 `git pull`。
 - 模型 API 复用宿主机 `~/.claude/settings.json` 里的 `env`，其中 `127.0.0.1` 会改写为 `host.docker.internal`。cc-switch 必须保持运行。
 - `loop.sh` 和 `prompt.md` 在构建镜像时固化。agent 改了仓库里的版本，要等你 `git pull` 后重新 `start` 才会生效。
