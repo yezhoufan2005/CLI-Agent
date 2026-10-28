@@ -104,6 +104,7 @@ class Agent:
         if self.ctx.checkpoints is not None:
             self.ctx.checkpoints.begin(prompt)
         turns = 0
+        shrinks = 0
         last_text = ""
         try:
             while True:
@@ -127,7 +128,8 @@ class Agent:
                 try:
                     completion = self._complete(session)
                 except ProviderError as err:
-                    if is_context_overflow(err) and self._shrink(session):
+                    if is_context_overflow(err) and shrinks < MAX_SHRINKS and self._shrink(session):
+                        shrinks += 1
                         turns -= 1
                         continue
                     log.event(
@@ -269,8 +271,15 @@ _OVERFLOW_HINTS = (
 )
 
 
+MAX_SHRINKS = 4
+
+
 def is_context_overflow(err: ProviderError) -> bool:
+    """True if the prompt itself is too long. An overflow caused by the requested
+    output size (max_tokens / "in the completion") is not fixed by eliding history."""
     text = str(err).lower()
+    if "completion" in text or "max_tokens" in text:
+        return False
     return not err.retryable and any(h in text for h in _OVERFLOW_HINTS)
 
 

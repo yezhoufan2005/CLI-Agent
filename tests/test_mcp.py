@@ -80,3 +80,20 @@ def test_config_parsing(tmp_path: Path) -> None:
         f.write_text(bad)
         with pytest.raises(ConfigError):
             load_config(f, environ={})
+
+
+def test_tool_name_collisions_skipped(tmp_path: Path) -> None:
+    servers, tools, problems = start_servers(
+        [
+            ServerConfig("echo", [sys.executable, SERVER]),
+            ServerConfig("echo", [sys.executable, SERVER]),
+        ],
+        str(tmp_path),
+        reserved={"mcp__echo__fail"},
+    )
+    try:
+        assert [t.name for t in tools] == ["mcp__echo__echo"]
+        assert sum("already in use" in p for p in problems) == 3
+    finally:
+        for s in servers:
+            s.close()

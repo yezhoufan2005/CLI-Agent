@@ -60,9 +60,57 @@ def test_tampered_checkpoint_cannot_escape_workspace(tmp_path: Path) -> None:
     victim.write_text("keep")
     cps.path.parent.mkdir(parents=True)
     cps.path.write_text(
-        '{"checkpoints": [{"label": "x", "files": {"../victim.txt": '
+        '{"version": 2, "checkpoints": [{"label": "x", "files": {"../victim.txt": '
         '{"original": null, "written": "0"}}}]}'
     )
     report = Checkpoints(cps.path, ctx.root).undo()
     assert report is not None and report.skipped == ["../victim.txt"]
     assert victim.read_text() == "keep"
+
+
+def test_undo_restores_exact_bytes_of_non_utf8_file(tmp_path: Path) -> None:
+    ctx, cps = setup(tmp_path)
+    original = "caf\xe9 = 1\r\nx = 'M\xfcller'\r\n".encode("latin-1")
+    (ctx.root / "legacy.py").write_bytes(original)
+    cps.begin("p")
+    ReadFile().run({"path": "legacy.py"}, ctx)
+    EditFile().run({"path": "legacy.py", "old_string": "1", "new_string": "2"}, ctx)
+    report = cps.undo()
+    assert report is not None and report.restored == ["legacy.py"]
+    assert (ctx.root / "legacy.py").read_bytes() == original
+
+
+def test_undo_never_follows_symlink_swapped_in_later(tmp_path: Path) -> None:
+    ctx, cps = setup(tmp_path)
+    keep = ctx.root / "keep.txt"
+    keep.write_text("same")
+    cps.begin("p")
+    WriteFile().run({"path": "gen.txt", "content": "same"}, ctx)
+    (ctx.root / "gen.txt").unlink()
+    (ctx.root / "gen.txt").symlink_to(keep)
+    report = cps.undo()
+    assert report is not None and report.skipped == ["gen.txt"]
+    assert keep.read_text() == "same"
+
+
+def test_empty_prompts_do_not_evict_real_checkpoints(tmp_path: Path) -> None:
+    ctx, cps = setup(tmp_path)
+    cps.begin("real")
+    WriteFile().run({"path": "a", "content": "x"}, ctx)
+    for i in range(30):
+        cps.begin(f"question {i}")
+    report = cps.undo()
+    assert report is not None and report.label == "real"
+
+
+def test_corrupt_checkpoint_file_is_ignored(tmp_path: Path) -> None:
+    ctx, cps = setup(tmp_path)
+    cps.path.parent.mkdir(parents=True)
+    for bad in (
+        '{"version": 2, "checkpoints": 5}',
+        '{"version": 2, "checkpoints": [{"label": "x"}]}',
+        "[1]",
+        "{not json",
+    ):
+        cps.path.write_text(bad)
+        assert Checkpoints(cps.path, ctx.root).undo() is None

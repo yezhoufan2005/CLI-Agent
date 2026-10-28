@@ -269,3 +269,45 @@ def test_streaming_without_done_marker_but_finished_is_ok() -> None:
         system="", messages=[], tools=[], max_tokens=5, on_text=lambda t: None
     )
     assert c.message.text() == "x" and c.stop_reason == "end_turn"
+
+
+def test_streaming_odd_fragment_shapes() -> None:
+    body = sse_chunks(
+        {
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {"id": "c1", "function": {"name": "read_file", "arguments": '{"pa'}}
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {"function": {"name": "read_file", "arguments": 'th": "a"}'}}
+                        ]
+                    }
+                }
+            ]
+        },
+        {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]},
+    )
+    c = stream_provider(body).complete(
+        system="", messages=[], tools=[], max_tokens=5, on_text=lambda t: None
+    )
+    calls = c.message.tool_uses()
+    assert [(x.name, x.input) for x in calls] == [("read_file", {"path": "a"})]
+
+
+def test_streaming_context_error_not_retryable() -> None:
+    body = sse_chunks({"error": {"message": "This model's maximum context length is 8192"}})
+    with pytest.raises(ProviderError) as info:
+        stream_provider(body).complete(
+            system="", messages=[], tools=[], max_tokens=5, on_text=lambda t: None
+        )
+    assert not info.value.retryable

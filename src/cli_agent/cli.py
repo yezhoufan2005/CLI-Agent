@@ -18,14 +18,15 @@ from cli_agent import __version__, log
 from cli_agent.agent import Agent, RunResult
 from cli_agent.checkpoint import Checkpoints
 from cli_agent.config import Config, ConfigError, load_config
-from cli_agent.mcp import start_servers
+from cli_agent.mcp import MCPServer, start_servers
 from cli_agent.permissions import MODES, PermissionPolicy
 from cli_agent.prompt import build_system_prompt
 from cli_agent.providers.base import Provider, ProviderError
-from cli_agent.sandbox import SANDBOX_MODES, SandboxUnavailable
+from cli_agent.sandbox import SANDBOX_MODES, Sandbox, SandboxUnavailable
 from cli_agent.sandbox import resolve as resolve_sandbox
 from cli_agent.session import Session, SessionStore, default_state_dir, new_session_id
 from cli_agent.tools import ToolContext, default_tools
+from cli_agent.tools.shell import scrubbed_env
 from cli_agent.ui import JsonUI, TerminalUI
 from cli_agent.workspace import git_warning
 
@@ -169,12 +170,22 @@ def harden_process() -> bool:
         return False
 
 
+def drop_credentials_from_environ() -> None:
+    """Remove credential-like variables from our own environment once config has
+    captured them. Every child process (shell, MCP servers, multiprocessing
+    helpers such as the resource tracker) then starts without them, even ones
+    not launched through scrubbed_env."""
+    for name in list(os.environ):
+        if name not in scrubbed_env({name: ""}):
+            del os.environ[name]
+
+
 def _err(msg: str) -> None:
     print(f"cli-agent: {msg}", file=sys.stderr)
 
 
 def checkpoints_for(root: Path) -> Checkpoints:
-    key = hashlib.sha256(str(root).encode()).hexdigest()[:16]
+    key = hashlib.sha256(os.fsencode(root)).hexdigest()[:16]
     return Checkpoints(default_state_dir() / "checkpoints" / f"{key}.json", root)
 
 
@@ -239,6 +250,7 @@ def main(argv: list[str] | None = None) -> int:
         _err(str(err))
         return EXIT_USAGE
     harden_process()
+    drop_credentials_from_environ()
     if args.debug_log:
         try:
             log.enable(args.debug_log)
@@ -318,7 +330,51 @@ def main(argv: list[str] | None = None) -> int:
         warning = git_warning(root)
         if warning:
             ui.on_notice(warning)
-    servers, mcp_tools, problems = start_servers(cfg.mcp_servers, str(root))
+    servers: list[MCPServer] = []
+    try:
+        return _run(
+            cfg,
+            root,
+            ui,
+            policy,
+            provider,
+            sandbox,
+            store,
+            session,
+            prompt,
+            interactive_repl,
+            servers,
+        )
+    except KeyboardInterrupt:
+        print(file=sys.stderr)
+        return EXIT_INTERRUPTED
+    finally:
+        for server in servers:
+            server.close()
+
+
+def _run(
+    cfg: Config,
+    root: Path,
+    ui: TerminalUI | JsonUI,
+    policy: PermissionPolicy,
+    provider: Provider,
+    sandbox: Sandbox | None,
+    store: SessionStore,
+    session: Session,
+    prompt: str,
+    interactive_repl: bool,
+    servers: list[MCPServer],
+) -> int:
+    builtin = default_tools()
+    # Servers start in a neutral directory: launchers load code from their cwd.
+    mcp_cwd = default_state_dir() / "mcp-cwd"
+    if cfg.mcp_servers:
+        mcp_cwd.mkdir(parents=True, exist_ok=True, mode=0o700)
+    started, mcp_tools, problems = start_servers(
+        cfg.mcp_servers, str(mcp_cwd), reserved={t.name for t in builtin}
+    )
+    servers.extend(started)
     for problem in problems:
         ui.on_notice(problem)
     if mcp_tools:
@@ -326,7 +382,7 @@ def main(argv: list[str] | None = None) -> int:
         ui.on_notice(f"MCP: {len(mcp_tools)} tool(s) from {names}")
     agent = Agent(
         provider=provider,
-        tools=[*default_tools(), *mcp_tools],
+        tools=[*builtin, *mcp_tools],
         policy=policy,
         ctx=ToolContext(
             root=root,
@@ -342,14 +398,10 @@ def main(argv: list[str] | None = None) -> int:
         max_tokens=cfg.max_tokens,
         save=store.save,
     )
-    try:
-        if interactive_repl:
-            return _repl(agent, session, ui)
-        result = agent.run(session, prompt)
-        return _finish(result, session, ui)
-    finally:
-        for server in servers:
-            server.close()
+    if interactive_repl:
+        return _repl(agent, session, ui)
+    result = agent.run(session, prompt)
+    return _finish(result, session, ui)
 
 
 def _open_session(

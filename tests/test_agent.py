@@ -297,3 +297,14 @@ def test_session_token_budget_stops_run(tmp_path: Path) -> None:
     # The fake provider reports 15 tokens per call: two calls reach 30.
     assert result.status == "budget" and len(provider.requests) == 2
     assert "30 of 30" in result.error
+
+
+def test_overflow_caused_by_max_tokens_does_not_elide(tmp_path: Path) -> None:
+    from cli_agent.agent import is_context_overflow
+
+    err = ProviderError(
+        "HTTP 400: maximum context length is 8192 tokens; you requested "
+        "9000 tokens (1000 in the messages, 8000 in the completion)"
+    )
+    assert not is_context_overflow(err)
+    assert is_context_overflow(ProviderError("HTTP 400: prompt is too long: 300000 tokens"))
