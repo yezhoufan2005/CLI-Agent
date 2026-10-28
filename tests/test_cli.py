@@ -306,3 +306,12 @@ def test_no_child_process_inherits_credentials(tmp_path: Path) -> None:
     ends = [json.loads(x) for x in r.stdout.splitlines() if '"tool_end"' in x]
     shell_out = ends[-1]["output"]
     assert "LEAK" not in shell_out
+
+
+def test_doctor_reports_environment(tmp_path: Path) -> None:
+    config = 'provider = "fake"\n[mcp_servers.gone]\ncommand = ["/nonexistent/srv"]\n'
+    r = run_cli(tmp_path, [{"text": "OK"}], "doctor", config=config)
+    assert "✓ bash:" in r.stdout and "state directory writable" in r.stdout
+    assert "shell sandbox" in r.stdout
+    assert "✗ MCP server gone" in r.stdout
+    assert "replied: 'OK'" in r.stdout
