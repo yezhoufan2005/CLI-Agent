@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Notes
+- The OpenAI-compatible provider (Ollama, streaming and non-streaming) and the MCP client (`@modelcontextprotocol/server-filesystem`) have now been checked by hand against real servers.
+
 ## 0.2.0 — 2026-10-28
 
 ### Added
