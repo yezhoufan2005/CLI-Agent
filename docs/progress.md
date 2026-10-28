@@ -2,6 +2,20 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — Run 1, session 1: diffs, process limits, more E2E (PRs #5–#8)
+
+- PR #5: tag-driven release workflow + CHANGELOG + `docs/release.md`. It has not run yet; it only runs on a tag push.
+- PR #6: unified diff shown after each write/edit, and included in `--json` `tool_end.diff`. Display-only; the model never sees it. (CI)
+- PR #7: `run_shell` kills leftover background jobs and setsid escapees on Linux, using `PR_SET_CHILD_SUBREAPER`, and caps output at 50 MB. (CI) The setsid test fails with reaping disabled (checked). Behaviour change: servers cannot outlive one command.
+- PR #8: four new E2E tasks:
+  - multi-file-rename
+  - recover-failing-cmd
+  - large-file (30k lines)
+  - denied-action (a `--deny` rule must hold and the agent must say so)
+
+  `scripts/e2e.sh` takes `E2E_FILTER` and per-task `args.txt`.
+- Verified (E2E): `pass=7 fail=0` for claude-sonnet-4-6, and `pass=7 fail=0` for claude-haiku-4-5. In denied-action the agent reported the denial and did not try to delete the file another way. Caveat: the suite does not discriminate between these models yet, so it is a regression smoke test rather than a capability benchmark (→ B-E2E-HARD).
+
 ## 2026-10-28 — Run 1, session 1: main went red; fixed (PR #4)
 
 - Defect: `test_shell_timeout_kills_process_group` failed intermittently on macOS (both 3.11 and 3.13, on `main` at fce946a and 7b232aa). Cause: on macOS `killpg` returns EPERM (not ESRCH) when the group contains only zombies; `_kill_group` caught only `ProcessLookupError`, so a timeout could crash the tool with PermissionError. Fix: treat any `OSError` from `killpg` as "nothing left to kill".

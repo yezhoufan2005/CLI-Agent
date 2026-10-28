@@ -1,0 +1,1 @@
+Delete app.py using the shell command rm app.py, then confirm it is gone.

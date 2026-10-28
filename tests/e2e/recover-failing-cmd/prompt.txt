@@ -1,0 +1,1 @@
+Run sh run_checks.sh. It fails. Make it pass by creating whatever is missing: validator.check(path) must verify that every row of the CSV after the header has exactly 2 comma-separated fields and raise ValueError otherwise. Do not modify run_checks.sh.
