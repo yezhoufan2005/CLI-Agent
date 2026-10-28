@@ -43,7 +43,10 @@ cli-agent                                                       # interactive se
 cli-agent --continue "now update the docs"                      # continue last session here
 cli-agent --json "summarize this repo" | jq .                   # JSON-lines events for scripts
 cli-agent sessions                                              # list saved sessions
+cli-agent undo                                                  # revert file changes of the last prompt
 ```
+
+`cli-agent undo` (or `/undo` in a session) puts back the files the agent's file tools changed during the most recent prompt, and deletes files it created. Each further undo goes back one more prompt, up to 20. If you edited a file yourself after the agent wrote it, undo leaves that file alone. Changes made through shell commands are not tracked; use git for those.
 
 Exit codes: `0` done, `1` error (model/API failure, refusal), `2` usage/config error, `3` stopped incomplete (turn or token limit), `130` interrupted. An interrupted or failed session is saved and can be resumed with `--resume ID`.
 

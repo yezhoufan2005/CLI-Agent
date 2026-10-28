@@ -8,6 +8,7 @@ cli-agent doctor                 check configuration and connectivity
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -15,18 +16,19 @@ from pathlib import Path
 
 from cli_agent import __version__, log
 from cli_agent.agent import Agent, RunResult
+from cli_agent.checkpoint import Checkpoints
 from cli_agent.config import Config, ConfigError, load_config
 from cli_agent.permissions import MODES, PermissionPolicy
 from cli_agent.prompt import build_system_prompt
 from cli_agent.providers.base import Provider, ProviderError
 from cli_agent.sandbox import SANDBOX_MODES, SandboxUnavailable
 from cli_agent.sandbox import resolve as resolve_sandbox
-from cli_agent.session import Session, SessionStore, new_session_id
+from cli_agent.session import Session, SessionStore, default_state_dir, new_session_id
 from cli_agent.tools import ToolContext, default_tools
 from cli_agent.ui import JsonUI, TerminalUI
 from cli_agent.workspace import git_warning
 
-SUBCOMMANDS = ("sessions", "doctor")
+SUBCOMMANDS = ("sessions", "doctor", "undo")
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -48,7 +50,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="cli-agent",
         description="An autonomous coding agent for your terminal.",
-        epilog="Subcommands: 'cli-agent sessions' lists sessions, 'cli-agent doctor' checks setup.",
+        epilog="Subcommands: 'cli-agent sessions' lists sessions, 'cli-agent doctor' checks setup, "
+        "'cli-agent undo' reverts the file changes of the last prompt.",
     )
     p.add_argument(
         "prompt",
@@ -154,6 +157,26 @@ def _err(msg: str) -> None:
     print(f"cli-agent: {msg}", file=sys.stderr)
 
 
+def checkpoints_for(root: Path) -> Checkpoints:
+    key = hashlib.sha256(str(root).encode()).hexdigest()[:16]
+    return Checkpoints(default_state_dir() / "checkpoints" / f"{key}.json", root)
+
+
+def cmd_undo(cps: Checkpoints) -> int:
+    report = cps.undo()
+    if report is None:
+        print("nothing to undo: no file changes by the agent are recorded for this workspace")
+        return EXIT_OK
+    print(f"undid changes from: {report.label}")
+    for rel in report.restored:
+        print(f"  restored {rel}")
+    for rel in report.deleted:
+        print(f"  deleted {rel} (the agent created it)")
+    for rel in report.skipped:
+        print(f"  skipped {rel} (changed since the agent wrote it; left as is)")
+    return EXIT_OK
+
+
 def cmd_sessions(store: SessionStore) -> int:
     sessions = store.list()
     if not sessions:
@@ -227,6 +250,8 @@ def main(argv: list[str] | None = None) -> int:
     if not root.is_dir():
         _err(f"workspace {root} is not a directory")
         return EXIT_USAGE
+    if sub == "undo":
+        return cmd_undo(checkpoints_for(root))
 
     prompt = " ".join(args.prompt).strip()
     stdin_tty = sys.stdin.isatty()
@@ -273,7 +298,12 @@ def main(argv: list[str] | None = None) -> int:
         provider=provider,
         tools=default_tools(),
         policy=policy,
-        ctx=ToolContext(root=root, shell_timeout=cfg.shell_timeout, sandbox=sandbox),
+        ctx=ToolContext(
+            root=root,
+            shell_timeout=cfg.shell_timeout,
+            sandbox=sandbox,
+            checkpoints=checkpoints_for(root),
+        ),
         ui=ui,
         system=build_system_prompt(root),
         max_turns=cfg.max_turns,
@@ -356,9 +386,16 @@ def _repl(agent: Agent, session: Session, ui: TerminalUI | JsonUI) -> int:
             return EXIT_OK
         if line == "/help":
             print(
-                "/exit  quit\n/usage  token usage\n/mode MODE  change permission mode",
+                "/exit  quit\n"
+                "/undo  revert the file changes of the last prompt\n"
+                "/usage  token usage\n"
+                "/mode MODE  change permission mode",
                 file=sys.stderr,
             )
+            continue
+        if line == "/undo":
+            if agent.ctx.checkpoints is not None:
+                cmd_undo(agent.ctx.checkpoints)
             continue
         if line == "/usage":
             print(json.dumps(session.usage.to_dict()), file=sys.stderr)

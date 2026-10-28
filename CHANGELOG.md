@@ -8,6 +8,7 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 - Elided tool output now names the call it replaced and repeats the note the model wrote after it, so long sessions don't loop re-reading files.
 
 ### Added
+- `cli-agent undo` and `/undo`: revert the file changes made by the agent's file tools during the last prompt (one prompt per undo, up to 20). Files changed by the user afterwards are left untouched.
 - `search_files` runs in a child process with a 30 s limit, so a catastrophic regex cannot hang the agent.
 - `context_chars` config key; on a "prompt is too long" error the agent compacts history and retries.
 

@@ -178,6 +178,8 @@ class WriteFile:
             raise ToolError("file exists; read it with read_file before overwriting it")
         before = _read_text(path) if existed else ""
         _atomic_write(path, content)
+        if ctx.checkpoints is not None:
+            ctx.checkpoints.record(path, before if existed else None, content)
         ctx.read_files.add(path)
         verb = "overwrote" if existed else "created"
         rel = display_path(ctx.root, path)
@@ -231,6 +233,8 @@ class EditFile:
             )
         updated = text.replace(old, new) if replace_all else text.replace(old, new, 1)
         _atomic_write(path, updated)
+        if ctx.checkpoints is not None:
+            ctx.checkpoints.record(path, text, updated)
         line = text[: text.index(old)].count("\n") + 1
         n = count if replace_all else 1
         rel = display_path(ctx.root, path)
