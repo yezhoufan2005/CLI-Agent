@@ -288,3 +288,12 @@ def test_elided_marker_keeps_models_following_note() -> None:
     compact_history(msgs, budget=2500, keep_recent=2)
     marker = msgs[1].content[0].content  # type: ignore[union-attr]
     assert "Your note after reading it: Noted: A = 1" in marker
+
+
+def test_session_token_budget_stops_run(tmp_path: Path) -> None:
+    script = [{"tool_calls": [{"name": "list_files", "input": {}}]}] * 5
+    agent, provider = make_agent(tmp_path, script, max_session_tokens=30)
+    result = agent.run(new_session(tmp_path), "go")
+    # The fake provider reports 15 tokens per call: two calls reach 30.
+    assert result.status == "budget" and len(provider.requests) == 2
+    assert "30 of 30" in result.error

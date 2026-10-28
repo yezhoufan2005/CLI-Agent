@@ -4,18 +4,20 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
-### Known limitations
-- The OpenAI-compatible provider (now streaming) and the MCP client have only been tested against fakes, not real third-party endpoints or servers.
-
-### Changed
-- Elided tool output now names the call it replaced and repeats the note the model wrote after it, so long sessions don't loop re-reading files.
-
 ### Added
+- `--max-session-tokens N` / `max_session_tokens`: stop (exit 3) once a session has used N input+output tokens.
+- Streaming for the OpenAI-compatible provider.
 - MCP client for stdio servers configured in the user config file (`[mcp_servers.NAME]`); tools are exposed as `mcp__NAME__TOOL` and always need approval outside `auto` mode.
 - `sessions --limit N`.
 - `cli-agent undo` and `/undo`: revert the file changes made by the agent's file tools during the last prompt (one prompt per undo, up to 20). Files changed by the user afterwards are left untouched.
 - `search_files` runs in a child process with a 30 s limit, so a catastrophic regex cannot hang the agent.
 - `context_chars` config key; on a "prompt is too long" error the agent compacts history and retries.
+
+### Changed
+- Elided tool output now names the call it replaced and repeats the note the model wrote after it, so long sessions don't loop re-reading files.
+
+### Known limitations
+- The OpenAI-compatible provider and the MCP client have only been tested against fakes, not real third-party endpoints or servers.
 
 ## 0.1.0 — 2026-10-28
 

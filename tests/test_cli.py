@@ -272,3 +272,9 @@ def test_mcp_tool_used_end_to_end(tmp_path: Path) -> None:
     assert r.returncode == 0, r.stderr
     ends = [json.loads(x) for x in r.stdout.splitlines() if '"tool_end"' in x]
     assert ends[0]["output"] == "echo: ping"
+
+
+def test_session_token_budget_exit_code(tmp_path: Path) -> None:
+    script = [{"tool_calls": [{"name": "list_files", "input": {}}]}] * 5
+    r = run_cli(tmp_path, script, "--max-session-tokens", "15", "loop")
+    assert r.returncode == 3 and "token budget reached" in r.stderr
