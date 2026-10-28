@@ -55,6 +55,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--mode", choices=MODES, help="permission mode (default from config: ask)")
     p.add_argument("--model", help="model name")
+    p.add_argument(
+        "--provider",
+        choices=("anthropic", "openai"),
+        help="model API: anthropic (default) or openai (any OpenAI-compatible endpoint)",
+    )
     p.add_argument("-C", "--cwd", type=Path, help="workspace root (default: current directory)")
     p.add_argument("--resume", metavar="ID", help="resume a saved session")
     p.add_argument(
@@ -94,10 +99,19 @@ def make_provider(cfg: Config) -> Provider:
         if not script:
             raise ConfigError("provider 'fake' needs CLI_AGENT_FAKE_SCRIPT=<path to JSON script>")
         return FakeProvider.from_file(Path(script))
+    if cfg.provider == "openai":
+        from cli_agent.providers.openai import DEFAULT_BASE_URL, OpenAIProvider
+
+        return OpenAIProvider(
+            model=cfg.model, base_url=cfg.base_url or DEFAULT_BASE_URL, api_key=cfg.api_key
+        )
     from cli_agent.providers.anthropic import AnthropicProvider
 
     return AnthropicProvider(
-        model=cfg.model, base_url=cfg.base_url, api_key=cfg.api_key, auth_token=cfg.auth_token
+        model=cfg.model,
+        base_url=cfg.base_url or "https://api.anthropic.com",
+        api_key=cfg.api_key,
+        auth_token=cfg.auth_token,
     )
 
 
@@ -167,7 +181,7 @@ def main(argv: list[str] | None = None) -> int:
     # A prompt that is exactly one subcommand word runs that subcommand.
     sub = args.prompt[0] if len(args.prompt) == 1 and args.prompt[0] in SUBCOMMANDS else ""
     try:
-        cfg = load_config(args.config)
+        cfg = load_config(args.config, provider=args.provider)
     except ConfigError as err:
         _err(str(err))
         return EXIT_USAGE
