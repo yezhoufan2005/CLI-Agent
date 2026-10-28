@@ -14,7 +14,7 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | B-GIT-SAFETY | P1 | done | Warn at start when workspace is not a git repo or has uncommitted changes in write modes | CLI test |
 | B-DIFF | P1 | done | Show a unified diff of each edit/write in the terminal UI (and in approval prompts) | UI unit test |
 | B-E2E-MORE | P1 | done | More E2E tasks: multi-file change, recover from failing command, large file paging, denied action | e2e passes ≥ 90% over 2 runs |
-| B-OPENAI | P1 | todo | OpenAI-compatible Chat Completions provider | Contract tests; e2e via a compatible endpoint if available |
+| B-OPENAI | P1 | done | OpenAI-compatible Chat Completions provider | Contract tests; e2e via a compatible endpoint if available |
 | B-LOG | P1 | todo | `--debug` log file with request timing, retries, tool durations (no secrets, no content by default) | Test that log has no secret values |
 | B-SANDBOX | P1 | todo | Optional bubblewrap sandbox for `run_shell` (read-only root, writable workspace, no network option) | Tests on a host with userns (CI ubuntu?) ; skip with clear message otherwise |
 | B-USAGE | P2 | todo | Print token usage / estimated cost summary at end of run | CLI test |

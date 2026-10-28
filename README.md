@@ -24,6 +24,16 @@ export ANTHROPIC_AUTH_TOKEN=...
 cli-agent doctor        # checks config and makes one tiny model call
 ```
 
+Any OpenAI-compatible Chat Completions endpoint (OpenAI, OpenRouter, Ollama, vLLM, LiteLLM, …) also works:
+
+```bash
+export OPENAI_API_KEY=...                         # optional for local servers
+export OPENAI_BASE_URL=http://localhost:11434/v1  # default: https://api.openai.com/v1
+cli-agent --provider openai --model qwen2.5-coder "explain src/main.py"
+```
+
+The OpenAI-compatible provider does not stream yet; text appears when each turn completes.
+
 ## Use
 
 ```bash
@@ -76,7 +86,7 @@ max_turns = 50
 shell_timeout = 120
 ```
 
-Precedence: defaults < config file < environment (`CLI_AGENT_MODEL`, `CLI_AGENT_MODE`, `ANTHROPIC_*`) < flags.
+Precedence: defaults < config file < environment (`CLI_AGENT_PROVIDER`, `CLI_AGENT_MODEL`, `CLI_AGENT_MODE`, `ANTHROPIC_*` / `OPENAI_*`) < flags. `provider = "openai"` in the config file selects the OpenAI-compatible provider.
 
 ## Development
 

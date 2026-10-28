@@ -9,6 +9,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 - Permission modes `read-only`, `ask`, `auto-edit`, `auto`; allow/deny rules; built-in guard for catastrophic shell commands; `.git/` writes always ask.
 - Resumable sessions (`--continue`, `--resume ID`, `cli-agent sessions`), saved atomically after every turn.
 - Anthropic Messages API provider with streaming, retries (honouring `retry-after`), and prompt caching. Works with Anthropic-compatible proxies (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`).
+- OpenAI-compatible Chat Completions provider (`--provider openai`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`); non-streaming.
+- Unified diff shown after every file write/edit (`diff` field in `--json` `tool_end` events).
+- Warning when the workspace is not a git repository or has uncommitted changes.
 - Headless use: prompt from stdin, `--json` JSON-lines events, documented exit codes.
 - `cli-agent doctor` to check configuration and connectivity.
 

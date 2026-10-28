@@ -16,6 +16,7 @@ from typing import Any
 from cli_agent.permissions import MODES, Mode
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
+PROVIDERS = ("anthropic", "openai", "fake")
 
 
 class ConfigError(Exception):
@@ -31,7 +32,8 @@ def default_config_path() -> Path:
 class Config:
     provider: str = "anthropic"
     model: str = DEFAULT_MODEL
-    base_url: str = "https://api.anthropic.com"
+    base_url: str = ""
+    """Empty means the provider's default endpoint."""
     api_key: str | None = None
     auth_token: str | None = None
     mode: Mode = "ask"
@@ -81,7 +83,7 @@ def _apply_file(cfg: Config, path: Path) -> None:
         if key in ("api_key", "auth_token"):
             raise ConfigError(
                 f"{path}: do not store {key} in the config file; use the environment "
-                "(ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN)"
+                "(ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN, or OPENAI_API_KEY)"
             )
         expected = _KEYS.get(key)
         if expected is None:
@@ -96,7 +98,11 @@ def _apply_file(cfg: Config, path: Path) -> None:
     cfg.source = str(path)
 
 
-def load_config(path: Path | None = None, environ: dict[str, str] | None = None) -> Config:
+def load_config(
+    path: Path | None = None,
+    environ: dict[str, str] | None = None,
+    provider: str | None = None,
+) -> Config:
     env = os.environ if environ is None else environ
     cfg = Config()
     config_path = path or Path(env.get("CLI_AGENT_CONFIG") or default_config_path())
@@ -104,10 +110,19 @@ def load_config(path: Path | None = None, environ: dict[str, str] | None = None)
         _apply_file(cfg, config_path)
     elif path is not None:
         raise ConfigError(f"config file {path} does not exist")
-    if env.get("ANTHROPIC_BASE_URL"):
-        cfg.base_url = env["ANTHROPIC_BASE_URL"]
-    cfg.api_key = env.get("ANTHROPIC_API_KEY") or None
-    cfg.auth_token = env.get("ANTHROPIC_AUTH_TOKEN") or None
+    # The provider must be settled first: it decides which credentials to read.
+    if provider or env.get("CLI_AGENT_PROVIDER"):
+        cfg.provider = provider or env["CLI_AGENT_PROVIDER"]
+    # Credentials and endpoint come from the chosen provider's usual variables.
+    if cfg.provider == "openai":
+        if env.get("OPENAI_BASE_URL"):
+            cfg.base_url = env["OPENAI_BASE_URL"]
+        cfg.api_key = env.get("OPENAI_API_KEY") or None
+    else:
+        if env.get("ANTHROPIC_BASE_URL"):
+            cfg.base_url = env["ANTHROPIC_BASE_URL"]
+        cfg.api_key = env.get("ANTHROPIC_API_KEY") or None
+        cfg.auth_token = env.get("ANTHROPIC_AUTH_TOKEN") or None
     if env.get("CLI_AGENT_MODEL"):
         cfg.model = env["CLI_AGENT_MODEL"]
     if env.get("CLI_AGENT_MODE"):
@@ -119,7 +134,7 @@ def load_config(path: Path | None = None, environ: dict[str, str] | None = None)
 def validate(cfg: Config) -> None:
     if cfg.mode not in MODES:
         raise ConfigError(f"invalid mode {cfg.mode!r}; choose one of {', '.join(MODES)}")
-    if cfg.provider not in ("anthropic", "fake"):
+    if cfg.provider not in PROVIDERS:
         raise ConfigError(f"unknown provider {cfg.provider!r}")
     if cfg.max_turns < 1 or cfg.max_tokens < 1 or cfg.shell_timeout <= 0:
         raise ConfigError("max_turns, max_tokens and shell_timeout must be positive")
