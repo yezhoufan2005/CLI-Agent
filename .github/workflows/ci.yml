@@ -26,6 +26,14 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python }}
+      - name: Install bubblewrap so sandbox tests run (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q bubblewrap
+          # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --ro-bind / / --unshare-net true && echo "bwrap usable"
+          echo "CLI_AGENT_REQUIRE_SANDBOX_TESTS=1" >> "$GITHUB_ENV"
       - run: ./scripts/check.sh
 
   build:

@@ -19,6 +19,8 @@ from cli_agent.config import Config, ConfigError, load_config
 from cli_agent.permissions import MODES, PermissionPolicy
 from cli_agent.prompt import build_system_prompt
 from cli_agent.providers.base import Provider, ProviderError
+from cli_agent.sandbox import SANDBOX_MODES, SandboxUnavailable
+from cli_agent.sandbox import resolve as resolve_sandbox
 from cli_agent.session import Session, SessionStore, new_session_id
 from cli_agent.tools import ToolContext, default_tools
 from cli_agent.ui import JsonUI, TerminalUI
@@ -68,6 +70,12 @@ def build_parser() -> argparse.ArgumentParser:
         dest="cont",
         action="store_true",
         help="continue the most recent session for this workspace",
+    )
+    p.add_argument(
+        "--sandbox",
+        choices=SANDBOX_MODES,
+        help="run shell commands in a bubblewrap sandbox: off (default), auto "
+        "(if available), required (refuse shell commands otherwise)",
     )
     p.add_argument("--json", action="store_true", help="emit JSON-lines events on stdout")
     p.add_argument("--max-turns", type=int, help="maximum model turns per prompt")
@@ -200,6 +208,8 @@ def main(argv: list[str] | None = None) -> int:
             return EXIT_USAGE
     if args.mode:
         cfg.mode = args.mode
+    if args.sandbox:
+        cfg.sandbox = args.sandbox
     if args.model:
         cfg.model = args.model
     if args.max_turns is not None:
@@ -244,6 +254,17 @@ def main(argv: list[str] | None = None) -> int:
     policy = PermissionPolicy(
         root=root, mode=cfg.mode, allow=cfg.allow + args.allow, deny=cfg.deny + args.deny
     )
+    try:
+        sandbox, sandbox_note = resolve_sandbox(
+            cfg.sandbox,  # type: ignore[arg-type]
+            root,
+            cfg.sandbox_network,
+        )
+    except SandboxUnavailable as err:
+        _err(f"sandbox=required but {err}")
+        return EXIT_USAGE
+    if sandbox_note:
+        ui.on_notice(sandbox_note)
     if cfg.mode != "read-only":
         warning = git_warning(root)
         if warning:
@@ -252,7 +273,7 @@ def main(argv: list[str] | None = None) -> int:
         provider=provider,
         tools=default_tools(),
         policy=policy,
-        ctx=ToolContext(root=root, shell_timeout=cfg.shell_timeout),
+        ctx=ToolContext(root=root, shell_timeout=cfg.shell_timeout, sandbox=sandbox),
         ui=ui,
         system=build_system_prompt(root),
         max_turns=cfg.max_turns,

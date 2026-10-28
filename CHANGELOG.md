@@ -12,6 +12,8 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 - OpenAI-compatible Chat Completions provider (`--provider openai`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`); non-streaming.
 - Unified diff shown after every file write/edit (`diff` field in `--json` `tool_end` events).
 - Warning when the workspace is not a git repository or has uncommitted changes.
+- Optional bubblewrap sandbox for shell commands (`--sandbox auto|required`): read-only host, writable workspace, hidden home directory, no network by default.
+- `--debug-log FILE` (timings, tokens, decisions; no content) and an end-of-run usage line.
 - Headless use: prompt from stdin, `--json` JSON-lines events, documented exit codes.
 - `cli-agent doctor` to check configuration and connectivity.
 

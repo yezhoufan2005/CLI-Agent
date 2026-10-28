@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from cli_agent.permissions import MODES, Mode
+from cli_agent.sandbox import SANDBOX_MODES
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
 PROVIDERS = ("anthropic", "openai", "fake")
@@ -42,6 +43,8 @@ class Config:
     max_turns: int = 50
     max_tokens: int = 8192
     shell_timeout: float = 120.0
+    sandbox: str = "off"
+    sandbox_network: bool = False
     source: str = "defaults"
 
     def redacted(self) -> dict[str, Any]:
@@ -57,6 +60,8 @@ class Config:
             "max_turns": self.max_turns,
             "max_tokens": self.max_tokens,
             "shell_timeout": self.shell_timeout,
+            "sandbox": self.sandbox,
+            "sandbox_network": self.sandbox_network,
             "source": self.source,
         }
 
@@ -71,6 +76,8 @@ _KEYS = {
     "max_turns": int,
     "max_tokens": int,
     "shell_timeout": float,
+    "sandbox": str,
+    "sandbox_network": bool,
 }
 
 
@@ -90,7 +97,7 @@ def _apply_file(cfg: Config, path: Path) -> None:
             raise ConfigError(f"{path}: unknown key {key!r}")
         if expected is float and isinstance(value, int) and not isinstance(value, bool):
             value = float(value)
-        if not isinstance(value, expected) or isinstance(value, bool):
+        if not isinstance(value, expected) or (isinstance(value, bool) and expected is not bool):
             raise ConfigError(f"{path}: {key} must be a {expected.__name__}")
         if isinstance(value, list) and not all(isinstance(v, str) for v in value):
             raise ConfigError(f"{path}: {key} must be a list of strings")
@@ -125,6 +132,8 @@ def load_config(
         cfg.auth_token = env.get("ANTHROPIC_AUTH_TOKEN") or None
     if env.get("CLI_AGENT_MODEL"):
         cfg.model = env["CLI_AGENT_MODEL"]
+    if env.get("CLI_AGENT_SANDBOX"):
+        cfg.sandbox = env["CLI_AGENT_SANDBOX"]
     if env.get("CLI_AGENT_MODE"):
         cfg.mode = env["CLI_AGENT_MODE"]  # type: ignore[assignment]
     validate(cfg)
@@ -134,6 +143,10 @@ def load_config(
 def validate(cfg: Config) -> None:
     if cfg.mode not in MODES:
         raise ConfigError(f"invalid mode {cfg.mode!r}; choose one of {', '.join(MODES)}")
+    if cfg.sandbox not in SANDBOX_MODES:
+        raise ConfigError(
+            f"invalid sandbox {cfg.sandbox!r}; choose one of {', '.join(SANDBOX_MODES)}"
+        )
     if cfg.provider not in PROVIDERS:
         raise ConfigError(f"unknown provider {cfg.provider!r}")
     if cfg.max_turns < 1 or cfg.max_tokens < 1 or cfg.shell_timeout <= 0:
