@@ -21,6 +21,35 @@ Approval = Literal["yes", "no", "always"]
 # past it, the oldest tool results are elided; the newest turns are kept intact.
 DEFAULT_CONTEXT_CHARS = 400_000
 ELIDED = "[older tool output elided to save context]"
+_ELIDED_PREFIX = "[elided: "
+
+
+def elided_marker(call: ToolUseBlock | None, size: int, note: str = "") -> str:
+    """Name the call whose output was removed, so the model knows what it already
+    did and does not loop re-running the same reads.
+
+    `note` is the text the model wrote right after seeing the output. It is
+    repeated inside the marker because some Anthropic-compatible backends drop
+    assistant text that shares a message with tool_use blocks (observed with the
+    development proxy; see docs/progress.md), while tool results always survive.
+    """
+    if call is None:
+        return ELIDED
+    args = json.dumps(call.input, ensure_ascii=False)
+    if len(args) > 200:
+        args = args[:200] + "…"
+    note = " ".join(note.split())
+    if len(note) > 500:
+        note = note[:500] + "…"
+    recorded = f" Your note after reading it: {note}" if note else ""
+    return (
+        f"{_ELIDED_PREFIX}output of {call.name} {args} ({size} chars) was removed to save "
+        f"context.{recorded} Re-run it only if you need details you did not note.]"
+    )
+
+
+def _is_elided(text: str) -> bool:
+    return text == ELIDED or text.startswith(_ELIDED_PREFIX)
 
 
 class UI(Protocol):
@@ -77,11 +106,18 @@ class Agent:
                 if turns >= self.max_turns:
                     return RunResult("max_turns", last_text, turns, f"stopped after {turns} turns")
                 turns += 1
-                compact_history(session.messages, self.context_chars)
+                elided = compact_history(session.messages, self.context_chars)
+                if elided:
+                    log.event(
+                        "compact", turn=turns, elided=elided, chars=history_chars(session.messages)
+                    )
                 started = time.monotonic()
                 try:
                     completion = self._complete(session)
                 except ProviderError as err:
+                    if is_context_overflow(err) and self._shrink(session):
+                        turns -= 1
+                        continue
                     log.event(
                         "model_error", turn=turns, retryable=err.retryable, error=str(err)[:300]
                     )
@@ -124,6 +160,16 @@ class Agent:
             session.repair()
             self.save(session)
             return RunResult("interrupted", last_text, turns, "interrupted by user")
+
+    def _shrink(self, session: Session) -> bool:
+        """After the API rejected the prompt as too long, compact to half the
+        current size. Returns False if nothing more can be elided."""
+        size = history_chars(session.messages)
+        elided = compact_history(session.messages, size // 2, keep_recent=2)
+        log.event("compact_overflow", elided=elided, chars=history_chars(session.messages))
+        if elided:
+            self.ui.on_notice(f"prompt too long for the model; elided {elided} old tool output(s)")
+        return elided > 0
 
     def _complete(self, session: Session):  # type: ignore[no-untyped-def]
         specs = [spec_of(t) for t in self.tools]
@@ -202,6 +248,20 @@ class Agent:
         return ToolResultBlock(call.id, result.content or "(no output)", result.is_error)
 
 
+_OVERFLOW_HINTS = (
+    "prompt is too long",
+    "context length",
+    "context window",
+    "maximum context",
+    "too many tokens",
+)
+
+
+def is_context_overflow(err: ProviderError) -> bool:
+    text = str(err).lower()
+    return not err.retryable and any(h in text for h in _OVERFLOW_HINTS)
+
+
 def history_chars(messages: list[Message]) -> int:
     total = 0
     for m in messages:
@@ -224,10 +284,17 @@ def compact_history(messages: list[Message], budget: int, keep_recent: int = 6) 
     elided = 0
     if history_chars(messages) <= budget:
         return 0
-    for m in messages[: max(len(messages) - keep_recent, 0)]:
+    calls = {u.id: u for m in messages for u in m.tool_uses()}
+    for i, m in enumerate(messages[: max(len(messages) - keep_recent, 0)]):
+        following = messages[i + 1] if i + 1 < len(messages) else None
+        note = following.text() if following and following.role == "assistant" else ""
         for b in m.content:
-            if isinstance(b, ToolResultBlock) and b.content != ELIDED and len(b.content) > 200:
-                b.content = ELIDED
+            if (
+                isinstance(b, ToolResultBlock)
+                and not _is_elided(b.content)
+                and len(b.content) > 400
+            ):
+                b.content = elided_marker(calls.get(b.tool_use_id), len(b.content), note)
                 elided += 1
                 if history_chars(messages) <= budget:
                     return elided

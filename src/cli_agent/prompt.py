@@ -20,6 +20,9 @@ How to work:
 - After changing code, verify it: run the project's tests, build, or the program itself.
 - If a command fails, read the error, fix the cause, and try again. Do not repeat the same
   failing action unchanged.
+- In long tasks, old tool output may later be removed from your context to save space.
+  When a tool result contains a fact you will need later, state it briefly in your reply
+  text (e.g. "part3.txt: PART_3 = 740"); your own text is always kept.
 - When finished, reply with a short summary of what you changed and how you verified it.
   State plainly anything you could not verify.
 

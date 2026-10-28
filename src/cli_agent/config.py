@@ -43,6 +43,8 @@ class Config:
     max_turns: int = 50
     max_tokens: int = 8192
     shell_timeout: float = 120.0
+    context_chars: int = 400_000
+    """History budget (~4 chars per token); older tool output is elided past it."""
     sandbox: str = "off"
     sandbox_network: bool = False
     source: str = "defaults"
@@ -60,6 +62,7 @@ class Config:
             "max_turns": self.max_turns,
             "max_tokens": self.max_tokens,
             "shell_timeout": self.shell_timeout,
+            "context_chars": self.context_chars,
             "sandbox": self.sandbox,
             "sandbox_network": self.sandbox_network,
             "source": self.source,
@@ -76,6 +79,7 @@ _KEYS = {
     "max_turns": int,
     "max_tokens": int,
     "shell_timeout": float,
+    "context_chars": int,
     "sandbox": str,
     "sandbox_network": bool,
 }
@@ -149,5 +153,7 @@ def validate(cfg: Config) -> None:
         )
     if cfg.provider not in PROVIDERS:
         raise ConfigError(f"unknown provider {cfg.provider!r}")
+    if cfg.context_chars < 10_000:
+        raise ConfigError("context_chars must be at least 10000")
     if cfg.max_turns < 1 or cfg.max_tokens < 1 or cfg.shell_timeout <= 0:
         raise ConfigError("max_turns, max_tokens and shell_timeout must be positive")
