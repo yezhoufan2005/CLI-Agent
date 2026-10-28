@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Changed
+- A reply cut off at the output token limit with no tool call no longer ends the run: the agent asks the model to continue (up to 3 times in a row) before stopping with exit code 3.
+
 ### Notes
 - The OpenAI-compatible provider (Ollama, streaming and non-streaming) and the MCP client (`@modelcontextprotocol/server-filesystem`) have now been checked by hand against real servers.
 

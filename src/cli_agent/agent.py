@@ -105,6 +105,7 @@ class Agent:
             self.ctx.checkpoints.begin(prompt)
         turns = 0
         shrinks = 0
+        continuations = 0
         last_text = ""
         try:
             while True:
@@ -163,10 +164,19 @@ class Agent:
                 calls = msg.tool_uses()
                 if not calls:
                     if completion.stop_reason == "max_tokens":
+                        # A reply cut off mid-thought is usually not the end of the
+                        # task; ask the model to carry on, a bounded number of times.
+                        if continuations < MAX_CONTINUATIONS:
+                            continuations += 1
+                            log.event("continue_after_max_tokens", turn=turns)
+                            session.add_user_text(CONTINUE_PROMPT)
+                            self.save(session)
+                            continue
                         return RunResult("max_tokens", last_text, turns, "response hit max_tokens")
                     if completion.stop_reason == "refusal":
                         return RunResult("refusal", last_text, turns, "model refused")
                     return RunResult("done", last_text, turns)
+                continuations = 0
                 results = [self._execute(call) for call in calls]
                 session.messages.append(Message(role="user", content=list(results)))
                 self.save(session)
@@ -272,6 +282,11 @@ _OVERFLOW_HINTS = (
 
 
 MAX_SHRINKS = 4
+MAX_CONTINUATIONS = 3
+CONTINUE_PROMPT = (
+    "[Your previous reply was cut off at the output token limit. Continue from where you "
+    "stopped; keep replies shorter, and make large file changes in several smaller edits.]"
+)
 
 
 def is_context_overflow(err: ProviderError) -> bool:
