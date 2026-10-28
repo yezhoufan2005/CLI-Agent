@@ -18,8 +18,8 @@ Compared with large agents (Claude Code, Codex CLI, Gemini CLI): fewer features,
 - IDE integration, GUI, or a full-screen TUI.
 - Multi-agent orchestration, background daemons, cloud execution.
 - Web browsing / web search tools (would add an exfiltration channel; revisit with an explicit trust design).
-- A plugin marketplace. Extensibility is limited to configuration until there is evidence of need (MCP is a deferred candidate).
-- OS-level sandboxing of shell commands in 0.1 (planned; see backlog). Until then the README states plainly that shell commands are not sandboxed.
+- A plugin marketplace. Extensibility is through user-configured MCP servers (tools only).
+- Sandboxing by default. The bubblewrap sandbox is opt-in (`--sandbox`) and Linux-only; without it shell commands run with the user's privileges, as the README states.
 
 ## Core user journeys
 
@@ -40,7 +40,9 @@ Each criterion names its verification. "CI" = automated test in `tests/` run by 
 - AC-F1 The agent loop sends tool results back to the model and continues until the model stops calling tools. (CI: `test_agent.py::test_tool_loop_end_to_end`)
 - AC-F2 File tools: read with line numbers and paging; create/overwrite; exact-string edit with uniqueness check; list and regex search that skip VCS/venv dirs. (CI: `test_tools.py`)
 - AC-F3 Shell tool returns exit code and combined output; non-zero exit is reported as an error result. (CI)
-- AC-F4 One-shot, stdin, REPL, `--json`, `--continue`, `--resume`, `sessions`, `doctor` work as documented. (CI: `test_cli.py`; REPL: manual/E2E)
+- AC-F4 One-shot, stdin, REPL, `--json`, `--continue`, `--resume`, `sessions`, `doctor`, `undo` work as documented. (CI: `test_cli.py`; REPL: `test_repl.py` via a pty)
+- AC-F6 The user can revert the agent's file-tool changes per prompt without losing their own later edits. (CI: `test_checkpoint.py`)
+- AC-F7 Tools from user-configured MCP stdio servers are usable and go through the permission policy as `execute`. (CI: `test_mcp.py`)
 - AC-F5 Real model fixes a seeded bug in a small repo and the repo's tests pass afterwards. (E2E)
 
 ### Safety
@@ -60,7 +62,7 @@ Each criterion names its verification. "CI" = automated test in `tests/` run by 
 - AC-R2 Shell commands time out, and the whole process group is killed. (CI)
 - AC-R3 Tool output is bounded (head+tail truncation); a tool exception becomes an error result, not a crash. (CI)
 - AC-R4 Session history is saved after every turn atomically; an interrupted tool call is recorded so the resumed history is API-valid. (CI)
-- AC-R5 Long sessions stay within a context budget by eliding the oldest tool output. (CI: unit; E2E for real behaviour — not yet verified)
+- AC-R5 Long sessions stay within a context budget by eliding the oldest tool output, without the model losing facts it noted. (CI: unit; E2E: `long-context` task)
 - AC-R6 Turn limit and `max_tokens` stops are reported with distinct exit code 3. (CI)
 
 ### Operability
