@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -250,3 +251,35 @@ def test_write_and_edit_produce_diffs(ctx: ToolContext) -> None:
     assert "-a = 1" in res.display and "+a = 2" in res.display
     # The diff is for the user; the model sees the short summary only.
     assert "a = 2" not in res.content
+
+
+def test_shell_kills_leftover_background_jobs(ctx: ToolContext) -> None:
+    marker = ctx.root / "bg-marker"
+    res = RunShell().run({"command": f"(sleep 1; touch {marker}) & echo started"}, ctx)
+    assert not res.is_error and "started" in res.content
+    import time
+
+    time.sleep(1.5)
+    assert not marker.exists(), "background job outlived the command"
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="subreaper is Linux-only")
+def test_shell_kills_setsid_escapees(ctx: ToolContext) -> None:
+    marker = ctx.root / "setsid-marker"
+    cmd = (
+        f"setsid bash -c 'sleep 1; touch {marker}' >/dev/null 2>&1 < /dev/null & sleep 0.3; echo ok"
+    )
+    res = RunShell().run({"command": cmd, "timeout": 10}, ctx)
+    assert "ok" in res.content
+    import time
+
+    time.sleep(1.5)
+    assert not marker.exists(), "setsid child escaped cleanup"
+
+
+def test_shell_runaway_output_killed(ctx: ToolContext, monkeypatch: pytest.MonkeyPatch) -> None:
+    import cli_agent.tools.shell as shell
+
+    monkeypatch.setattr(shell, "MAX_SPOOL_BYTES", 1_000_000)
+    res = RunShell().run({"command": "yes", "timeout": 30}, ctx)
+    assert res.is_error and "output and was killed" in res.content
