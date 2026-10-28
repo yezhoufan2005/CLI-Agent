@@ -62,10 +62,16 @@ class TestRealSandbox:
         out = self.run(tmp_path, "echo hi > inside.txt && cat inside.txt")
         assert "hi" in out and (tmp_path / "inside.txt").read_text() == "hi\n"
 
-    def test_outside_read_only(self, tmp_path: Path) -> None:
+    def test_writes_outside_workspace_do_not_reach_host(self, tmp_path: Path) -> None:
+        # tmp_path's parent lives under /tmp, which is a private tmpfs in the
+        # sandbox: the write may succeed there but must not appear on the host.
         target = tmp_path.parent / f"{tmp_path.name}-outside.txt"
-        out = self.run(tmp_path, f"echo x > {target}; echo rc=$?")
-        assert not target.exists() and "rc=0" not in out
+        self.run(tmp_path, f"echo x > {target}")
+        assert not target.exists()
+
+    def test_host_filesystem_read_only(self, tmp_path: Path) -> None:
+        out = self.run(tmp_path, "touch /usr/.cli-agent-sandbox-test 2>&1; echo rc=$?")
+        assert "Read-only file system" in out and "rc=0" not in out
 
     def test_home_hidden(self, tmp_path: Path) -> None:
         home = Path.home()
