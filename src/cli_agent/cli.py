@@ -22,6 +22,7 @@ from cli_agent.providers.base import Provider, ProviderError
 from cli_agent.session import Session, SessionStore, new_session_id
 from cli_agent.tools import ToolContext, default_tools
 from cli_agent.ui import JsonUI, TerminalUI
+from cli_agent.workspace import git_warning
 
 SUBCOMMANDS = ("sessions", "doctor")
 
@@ -217,6 +218,10 @@ def main(argv: list[str] | None = None) -> int:
     policy = PermissionPolicy(
         root=root, mode=cfg.mode, allow=cfg.allow + args.allow, deny=cfg.deny + args.deny
     )
+    if cfg.mode != "read-only":
+        warning = git_warning(root)
+        if warning:
+            ui.on_notice(warning)
     agent = Agent(
         provider=provider,
         tools=default_tools(),
