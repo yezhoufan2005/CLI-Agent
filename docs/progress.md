@@ -2,12 +2,21 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — Real third-party integrations verified (manual)
+
+- **MCP**: `@modelcontextprotocol/server-filesystem` (via `npx -y`, rooted at a scratch dir) configured under `[mcp_servers.fs]`. cli-agent (sonnet-4-6, `--mode auto`) reported "MCP: 14 tool(s) from fs", called `fs.read_text_file`, and returned the file's exact contents. (verified, manual)
+- **OpenAI-compatible provider**: Ollama 11434 `/v1` with `qwen2.5:1.5b` (installed in the container for this run only).
+  - Non-streaming (`--json`): the model called `read_file`, and the run exited 0 with the correct answer.
+  - Streaming (terminal UI): the streamed tool call was parsed and executed. The small model invented an absolute path, the confinement check rejected it with a clear error, and the model reported that. Exit 0. Usage parsing worked (`cache read 2309` from Ollama's `cached_tokens`).
+  - The adapter is verified against a real server. The small model's answer quality is not ours.
+- This removes "tested only against fakes" for both integrations. CHANGELOG's Unreleased limitation is updated.
+
 ## 2026-10-28 — 0.2.0 released; state for the next session
 
 - https://github.com/yezhoufan2005/CLI-Agent/releases/tag/v0.2.0 was built by the release workflow from main after CI passed. Verified: downloaded the assets, `sha256sum -c` ok, clean-venv install reports `cli-agent 0.2.0`.
 - State: main is green; 212 tests (5 sandbox tests run only on Linux CI); E2E 11/11; Exercism bench 27/30 for both models. The only open issue is #17 (optional PyPI, needs-human).
 - Suggested next work, highest value first:
-  1. **Real third-party integrations.** Point the OpenAI provider at a real endpoint (e.g. a local Ollama, if one can be installed in the container) and the MCP client at `@modelcontextprotocol/server-filesystem` via npx. So far both are verified against fakes only.
+  1. ~~Real third-party integrations~~: done, see the entry above.
   2. **Bench difficulty.** Exercism doesn't separate haiku from sonnet. Try a small SWE-bench Lite subset; needs Docker-free setup, so investigate first.
   3. **Prompt caching.** `cache_read` is 0 via the dev proxy. Test against an endpoint known to support caching, or document it as proxy-specific.
   4. **UX.** Ctrl-C during a tool call in the REPL (should cancel the tool, not the session), plus `--resume` listing/picker niceties.
