@@ -2,6 +2,19 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — Release 0.1.0 gate evidence
+
+Commit under release: `cdd45b3` plus the version/CHANGELOG bump in PR #16.
+
+| Gate | Evidence |
+|---|---|
+| 1. CI green on all matrix entries | CI run on `main` at cdd45b3: success (ubuntu/macos × 3.11/3.13 + build). The release workflow re-runs the gate on the tag. |
+| 2. Each AC verified or listed as a limitation | All AC-F/S/R/O have CI tests. AC-F5 has E2E evidence. AC-R5 (real long-session behaviour) is listed under CHANGELOG "Known limitations". |
+| 3. E2E on the release commit | `scripts/e2e.sh claude-sonnet-4-6` at cdd45b3: `pass=10 fail=0` |
+| 4. No open `severity:high` issue | `gh issue list`: no open issues |
+| 5. Independent security review | Two reviewer-agent passes. Every high/medium finding is fixed with a regression test (entries below). |
+| 6. Wheel installs and runs | `uv build`, then install into a clean venv. `cli-agent --version` prints 0.1.0, and `cli-agent doctor` succeeded against the real model. |
+
 ## 2026-10-28 — Run 1, session 1: OpenAI provider, observability, sandbox, second review (PRs #10–#15)
 
 - PR #10: OpenAI-compatible provider (`--provider openai`). Verified with contract tests only; the model proxy available here doesn't serve `/chat/completions`.
