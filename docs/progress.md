@@ -2,6 +2,11 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — Run 1, session 1: main went red; fixed (PR #4)
+
+- Defect: `test_shell_timeout_kills_process_group` failed intermittently on macOS (both 3.11 and 3.13, on `main` at fce946a and 7b232aa). Cause: on macOS `killpg` returns EPERM (not ESRCH) when the group contains only zombies; `_kill_group` caught only `ProcessLookupError`, so a timeout could crash the tool with PermissionError. Fix: treat any `OSError` from `killpg` as "nothing left to kill".
+- Process failure: PR #3 was merged with `check (macos-latest, 3.13)` red because the ruleset required only a subset of jobs and allowed admin bypass. Fixed the mechanism, not just the instance: ruleset `main-protection` now requires all five CI jobs, requires a PR (squash only), and has **no bypass actors**; repo auto-merge enabled. Merge with `gh pr merge N --squash --auto`.
+
 ## 2026-10-28 — Run 1, session 1: streaming (PR #3)
 
 - Anthropic adapter streams over SSE when the UI wants deltas (terminal UI); `--json` mode stays non-streaming. Handles `ping`, unknown events/deltas (ignored), mid-stream `error` (retryable for overloaded/api/rate-limit), stream cut before `message_stop` (retryable), malformed events (retryable), `model_context_window_exceeded` (→ max_tokens).
