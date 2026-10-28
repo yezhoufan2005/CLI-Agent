@@ -2,6 +2,20 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — Capability benchmark: Exercism Python (PR #28)
+
+- `scripts/bench.py` gives the agent only an exercise's instructions and stub file, then copies in the hidden tests from [exercism/python](https://github.com/exercism/python) and runs pytest on them. Run with `--exercises <checkout>/exercises/practice`; local only, since it needs a real model.
+- Run: exercism/python at `6105f6d`, 30 exercises sampled with seed 7, 6 in parallel, `--max-turns 30`. Reports are in `docs/bench/exercism-seed7-*.json`.
+  - claude-haiku-4-5: 27/30 (90%). Failed: dot-dsl, house, pov.
+  - claude-sonnet-4-6: 27/30 (90%). Failed: dot-dsl, house, kindergarten-garden.
+- In every failure the agent reported `done` and exactly 1 hidden test failed. My guess, which I have not inspected, is that these exercises expect specific error messages or output formatting that the instructions don't fully specify.
+- Caveats:
+  - n=30 is small; ±5 percentage points is noise.
+  - Exercism solutions are widely published, so models may have memorized them.
+  - This is not comparable to SWE-bench.
+  - The two models are not separated at this difficulty either.
+  - Still, it is a reproducible end-to-end capability number for the agent loop, and it doesn't depend on tasks I wrote myself.
+
 ## 2026-10-28 — Dogfooding: cli-agent changed its own code (PR #23)
 
 - Task given to `cli-agent --mode auto` (claude-sonnet-4-6) on a clone of this repo: add `--limit N` to `sessions` with a CLI test, and run `./scripts/check.sh`.
