@@ -181,3 +181,91 @@ def test_config_reads_openai_credentials(tmp_path: Path) -> None:
     assert cfg.base_url == "http://localhost:11434/v1"
     cfg = load_config(None, environ={**env, "CLI_AGENT_CONFIG": str(tmp_path / "none.toml")})
     assert cfg.provider == "anthropic" and cfg.api_key == "ak" and cfg.base_url == ""
+
+
+def sse_chunks(*chunks: dict, done: bool = True) -> bytes:  # type: ignore[type-arg]
+    body = b"".join(f"data: {json.dumps(c)}\n\n".encode() for c in chunks)
+    return body + (b"data: [DONE]\n\n" if done else b"")
+
+
+def stream_provider(body: bytes, seen: dict | None = None) -> OpenAIProvider:  # type: ignore[type-arg]
+    def handler(req: httpx.Request) -> httpx.Response:
+        if seen is not None:
+            seen["body"] = json.loads(req.content)
+        return httpx.Response(200, content=body, headers={"content-type": "text/event-stream"})
+
+    return provider(handler)
+
+
+def test_streaming_text_and_split_tool_calls() -> None:
+    body = sse_chunks(
+        {"model": "gpt-x", "choices": [{"delta": {"role": "assistant", "content": "Look"}}]},
+        {"choices": [{"delta": {"content": "ing"}}]},
+        {
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "c1",
+                                "type": "function",
+                                "function": {"name": "read_file", "arguments": ""},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": '{"pa'}}]}}]},
+        {
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 1,
+                                "id": "c2",
+                                "function": {"name": "list_files", "arguments": "{}"},
+                            },
+                            {"index": 0, "function": {"arguments": 'th": "a"}'}},
+                        ]
+                    }
+                }
+            ]
+        },
+        {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]},
+        {"choices": [], "usage": {"prompt_tokens": 5, "completion_tokens": 2}},
+    )
+    seen: dict = {}
+    deltas: list[str] = []
+    c = stream_provider(body, seen).complete(
+        system="", messages=[], tools=[], max_tokens=5, on_text=deltas.append
+    )
+    assert seen["body"]["stream"] is True and seen["body"]["stream_options"]["include_usage"]
+    assert deltas == ["Look", "ing"] and c.message.text() == "Looking"
+    calls = c.message.tool_uses()
+    assert [(x.id, x.name, x.input) for x in calls] == [
+        ("c1", "read_file", {"path": "a"}),
+        ("c2", "list_files", {}),
+    ]
+    assert c.stop_reason == "tool_use" and c.usage.input_tokens == 5 and c.model == "gpt-x"
+
+
+def test_streaming_truncated_is_retryable() -> None:
+    body = sse_chunks({"choices": [{"delta": {"content": "par"}}]}, done=False)
+    with pytest.raises(ProviderError) as info:
+        stream_provider(body).complete(
+            system="", messages=[], tools=[], max_tokens=5, on_text=lambda t: None
+        )
+    assert info.value.retryable
+
+
+def test_streaming_without_done_marker_but_finished_is_ok() -> None:
+    body = sse_chunks(
+        {"choices": [{"delta": {"content": "x"}, "finish_reason": "stop"}]}, done=False
+    )
+    c = stream_provider(body).complete(
+        system="", messages=[], tools=[], max_tokens=5, on_text=lambda t: None
+    )
+    assert c.message.text() == "x" and c.stop_reason == "end_turn"

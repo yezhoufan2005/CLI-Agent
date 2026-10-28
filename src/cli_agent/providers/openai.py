@@ -1,4 +1,4 @@
-"""OpenAI-compatible Chat Completions adapter (non-streaming).
+"""OpenAI-compatible Chat Completions adapter (streaming via SSE, or a single JSON response).
 
 Targets the widely implemented ``POST {base_url}/chat/completions`` shape
 (OpenAI, OpenRouter, Ollama, vLLM, LiteLLM, ...). Translates the canonical
@@ -8,7 +8,7 @@ content-block history to and from role/tool_calls messages.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import httpx
@@ -96,35 +96,113 @@ class OpenAIProvider:
         max_tokens: int,
         on_text: Callable[[str], None] | None = None,
     ) -> Completion:
-        # Streaming is not implemented for this provider; the UI prints the
-        # full text when the turn completes.
         body = self.build_request(
             system=system, messages=messages, tools=tools, max_tokens=max_tokens
         )
+        if on_text is not None:
+            body["stream"] = True
+            body["stream_options"] = {"include_usage": True}
         try:
-            resp = self._client.post("/chat/completions", json=body)
+            with self._client.stream("POST", "/chat/completions", json=body) as resp:
+                if resp.status_code != 200:
+                    resp.read()
+                    raise ProviderError(
+                        f"HTTP {resp.status_code}: {_error_detail(resp)}",
+                        retryable=resp.status_code in RETRYABLE_STATUS,
+                        retry_after=parse_retry_after(resp.headers.get("retry-after")),
+                    )
+                if on_text is None:
+                    resp.read()
+                    try:
+                        data = resp.json()
+                    except ValueError as err:
+                        raise ProviderError("response was not valid JSON", retryable=True) from err
+                    return _parse_safely(lambda: parse_response(data))
+                lines = resp.iter_lines()
+                return _parse_safely(lambda: parse_response(accumulate_stream(lines, on_text)))
         except httpx.TimeoutException as err:
             raise ProviderError(f"request timed out: {err}", retryable=True) from err
         except httpx.TransportError as err:
             raise ProviderError(f"network error: {err}", retryable=True) from err
-        if resp.status_code != 200:
-            raise ProviderError(
-                f"HTTP {resp.status_code}: {_error_detail(resp)}",
-                retryable=resp.status_code in RETRYABLE_STATUS,
-                retry_after=parse_retry_after(resp.headers.get("retry-after")),
-            )
+
+
+def _parse_safely(parse: Callable[[], Completion]) -> Completion:
+    try:
+        return parse()
+    except ProviderError:
+        raise
+    except (TypeError, ValueError, KeyError, AttributeError, IndexError) as err:
+        raise ProviderError(
+            f"malformed response from server ({type(err).__name__})", retryable=True
+        ) from err
+
+
+def accumulate_stream(lines: Iterator[str], on_text: Callable[[str], None]) -> dict[str, Any]:
+    """Rebuild a non-streaming response body from Chat Completions SSE chunks.
+
+    Tool-call fragments are joined by their `index`; the id and name arrive in
+    the first fragment and the JSON arguments are split across the rest.
+    """
+    text: list[str] = []
+    calls: dict[int, dict[str, Any]] = {}
+    finish: str | None = None
+    usage: dict[str, Any] = {}
+    model = ""
+    done = False
+    for line in lines:
+        if not line.startswith("data:"):
+            continue
+        payload = line[5:].strip()
+        if payload == "[DONE]":
+            done = True
+            break
         try:
-            data = resp.json()
-        except ValueError as err:
-            raise ProviderError("response was not valid JSON", retryable=True) from err
-        try:
-            return parse_response(data)
-        except ProviderError:
-            raise
-        except (TypeError, ValueError, KeyError, AttributeError, IndexError) as err:
+            chunk = json.loads(payload)
+        except json.JSONDecodeError as err:
             raise ProviderError(
-                f"malformed response from server ({type(err).__name__})", retryable=True
+                f"malformed stream chunk ({len(payload)} bytes)", retryable=True
             ) from err
+        if not isinstance(chunk, dict):
+            raise ProviderError("malformed stream chunk", retryable=True)
+        if isinstance(chunk.get("error"), dict):
+            raise ProviderError(
+                f"stream error: {chunk['error'].get('message', 'unknown')}", retryable=True
+            )
+        model = str(chunk.get("model") or model)
+        if isinstance(chunk.get("usage"), dict):
+            usage = chunk["usage"]
+        for choice in chunk.get("choices") or []:
+            delta = choice.get("delta") or {}
+            piece = delta.get("content")
+            if isinstance(piece, str) and piece:
+                text.append(piece)
+                on_text(piece)
+            for frag in delta.get("tool_calls") or []:
+                slot = calls.setdefault(
+                    int(frag.get("index", len(calls))), {"id": "", "name": "", "args": []}
+                )
+                if frag.get("id"):
+                    slot["id"] = frag["id"]
+                fn = frag.get("function") or {}
+                if fn.get("name"):
+                    slot["name"] += fn["name"]
+                if fn.get("arguments"):
+                    slot["args"].append(str(fn["arguments"]))
+            if choice.get("finish_reason"):
+                finish = choice["finish_reason"]
+    if not done and finish is None:
+        raise ProviderError("stream ended before completion", retryable=True)
+    message: dict[str, Any] = {"content": "".join(text) or None}
+    if calls:
+        message["tool_calls"] = [
+            {"id": c["id"], "function": {"name": c["name"], "arguments": "".join(c["args"])}}
+            for _, c in sorted(calls.items())
+        ]
+    return {
+        "model": model,
+        "choices": [{"message": message, "finish_reason": finish}],
+        "usage": usage,
+    }
 
 
 def to_wire(msg: Message) -> list[dict[str, Any]]:
