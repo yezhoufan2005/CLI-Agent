@@ -22,6 +22,6 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | B-MCP | P2 | todo | MCP client for external tools (stdio) | Contract test with a toy server |
 | B-PARALLEL | P2 | todo | Run independent read-only tool calls concurrently | Agent test |
 | B-PROC-LIMITS | P1 | done | Kill processes that escape the shell's process group (setsid/nohup) at timeout; cap the on-disk output spool | Test: `setsid sleep` child is gone after timeout; spool ≤ limit |
-| B-REGEX-TIMEOUT | P2 | todo | Bound search_files time for pathological regexes (subprocess or deadline) | Test with `(a+)+$` on a long line returns within N s |
+| B-REGEX-TIMEOUT | P2 | done | Bound search_files time for pathological regexes (subprocess or deadline) | Test with `(a+)+$` on a long line returns within N s |
 | B-E2E-HARD | P1 | done | Harder E2E tasks (symptom-only bug with hidden edge cases, spec-to-implementation with hidden tests, argparse refactor with golden output) | Added 3 tasks; 10/10 pass on haiku-4-5 and sonnet-4-6, so the suite still does not discriminate; next step is B-BENCH |
 | B-BENCH | P2 | todo | Run a public benchmark subset (e.g. 20 SWE-bench Lite/Verified instances) to measure capability against published numbers | Recorded pass rate with exact instance list and model |

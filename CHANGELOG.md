@@ -8,6 +8,7 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 - Elided tool output now names the call it replaced and repeats the note the model wrote after it, so long sessions don't loop re-reading files.
 
 ### Added
+- `search_files` runs in a child process with a 30 s limit, so a catastrophic regex cannot hang the agent.
 - `context_chars` config key; on a "prompt is too long" error the agent compacts history and retries.
 
 ## 0.1.0 — 2026-10-28

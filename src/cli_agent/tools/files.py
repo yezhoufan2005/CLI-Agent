@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import difflib
 import fnmatch
+import multiprocessing
 import os
 import re
 import stat
@@ -28,6 +29,7 @@ MAX_READ_LINES = 2000
 MAX_LINE_CHARS = 2000
 MAX_FILE_BYTES = 5_000_000
 MAX_WALK_FILES = 20_000
+SEARCH_TIMEOUT = 30.0
 # Directories never worth walking for list/search.
 SKIP_DIRS = frozenset(
     {
@@ -302,6 +304,35 @@ class ListFiles:
         return ToolResult("\n".join(shown) + tail)
 
 
+def _scan(
+    pattern: str, flags: int, files: list[str], root: str, glob: str | None, max_matches: int
+) -> tuple[list[str], int]:
+    regex = re.compile(pattern, flags)
+    base = Path(root)
+    matches: list[str] = []
+    total = 0
+    for name in files:
+        f = Path(name)
+        rel = display_path(base, f)
+        if glob and not (fnmatch.fnmatch(rel, glob) or fnmatch.fnmatch(f.name, glob)):
+            continue
+        try:
+            if f.stat().st_size > MAX_FILE_BYTES:
+                continue
+            data = f.read_bytes()
+        except OSError:
+            continue
+        if b"\x00" in data[:8192]:
+            continue
+        for lineno, line in enumerate(data.decode("utf-8", "replace").splitlines(), 1):
+            # Only the first MAX_LINE_CHARS of a line are searched (minified files).
+            if regex.search(line[:MAX_LINE_CHARS]):
+                total += 1
+                if len(matches) < max_matches:
+                    matches.append(f"{rel}:{lineno}: {line[:300]}")
+    return matches, total
+
+
 class SearchFiles:
     name = "search_files"
     effect: Effect = "read"
@@ -332,31 +363,31 @@ class SearchFiles:
             raise ToolError(f"invalid regular expression: {err}") from err
         start = resolve_in_root(ctx.root, args.get("path") or ".")
         glob = args.get("glob")
+        if glob is not None and not isinstance(glob, str):
+            raise ToolError("glob must be a string")
         root = ctx.root.resolve()
         if start.is_file():
             files, truncated = [start], False
         else:
             files, truncated = _walk(root, start)
-        matches: list[str] = []
-        total = 0
-        for f in files:
-            rel = display_path(root, f)
-            if glob and not (fnmatch.fnmatch(rel, glob) or fnmatch.fnmatch(f.name, glob)):
-                continue
+        # A pathological pattern like (a+)+$ can backtrack for hours inside one
+        # re.search call, which Python cannot interrupt. Run the scan in a child
+        # process so it can be killed at the deadline.
+        ctx_mp = multiprocessing.get_context("spawn")
+        with ctx_mp.Pool(1) as pool:
+            job = pool.apply_async(
+                _scan,
+                (raw, regex.flags, [str(f) for f in files], str(root), glob, self.max_matches),
+            )
             try:
-                if f.stat().st_size > MAX_FILE_BYTES:
-                    continue
-                data = f.read_bytes()
-            except OSError:
-                continue
-            if b"\x00" in data[:8192]:
-                continue
-            for lineno, line in enumerate(data.decode("utf-8", "replace").splitlines(), 1):
-                # Only the first MAX_LINE_CHARS of a line are searched (minified files).
-                if regex.search(line[:MAX_LINE_CHARS]):
-                    total += 1
-                    if len(matches) < self.max_matches:
-                        matches.append(f"{rel}:{lineno}: {line[:300]}")
+                matches, total = job.get(timeout=SEARCH_TIMEOUT)
+            except multiprocessing.TimeoutError:
+                pool.terminate()
+                raise ToolError(
+                    f"search took longer than {SEARCH_TIMEOUT:g}s and was stopped; the pattern "
+                    "may backtrack catastrophically (e.g. nested quantifiers) or the path is "
+                    "too broad"
+                ) from None
         if not matches:
             return ToolResult("(no matches)")
         more = total - len(matches)
