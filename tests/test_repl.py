@@ -1,17 +1,24 @@
 """Drive the interactive REPL through a pseudo-terminal, as a user would."""
 
+import fcntl
 import json
 import os
 import pty
 import select
 import subprocess
 import sys
+import termios
 import time
 from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="needs a pty")
+
+
+def _take_tty() -> None:
+    os.setsid()
+    fcntl.ioctl(0, termios.TIOCSCTTY, 0)
 
 
 class Term:
@@ -36,6 +43,8 @@ class Term:
             stderr=slave,
             env=env,
             close_fds=True,
+            # Make the pty the controlling terminal so Ctrl-C sends SIGINT.
+            preexec_fn=_take_tty,
         )
         os.close(slave)
         self.buf = ""
@@ -121,3 +130,23 @@ def test_repl_decline_and_mode_switch(tmp_path: Path) -> None:
     assert t.close() == 0
     assert not (tmp_path / "work/nope").exists()
     assert (tmp_path / "work/y.txt").read_text() == "y"
+
+
+def test_ctrl_c_cancels_running_tool_but_keeps_session(tmp_path: Path) -> None:
+    script = [
+        {"tool_calls": [{"name": "run_shell", "input": {"command": "sleep 30; touch late"}}]},
+        {"text": "second prompt answered"},
+    ]
+    t = Term(tmp_path, script, "--mode", "auto")
+    t.expect("Type /exit")
+    t.send("run the slow thing")
+    t.expect("sleep 30")
+    time.sleep(0.5)
+    os.write(t.master, b"\x03")  # Ctrl-C
+    t.expect("interrupted")
+    t.send("are you still there?")
+    t.expect("second prompt answered")
+    t.send("/exit")
+    assert t.close() == 0
+    time.sleep(0.5)
+    assert not (tmp_path / "work/late").exists(), "the cancelled command kept running"
