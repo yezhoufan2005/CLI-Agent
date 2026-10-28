@@ -185,3 +185,34 @@ def test_git_warnings(tmp_path: Path) -> None:
     assert "uncommitted changes" in r.stderr
     r = run_cli(tmp_path, [{"text": "x"}], "--mode", "read-only", "hi")
     assert "uncommitted" not in r.stderr
+
+
+def test_debug_log_has_events_but_no_content(tmp_path: Path) -> None:
+    (tmp_path / "work").mkdir()
+    (tmp_path / "work" / "s.txt").write_text("FILE-CONTENT-MARKER\n")
+    script = [
+        {
+            "text": "MODEL-TEXT-MARKER",
+            "tool_calls": [{"name": "read_file", "input": {"path": "s.txt"}}],
+        },
+        {"text": "done"},
+    ]
+    logf = tmp_path / "debug.jsonl"
+    r = run_cli(
+        tmp_path,
+        script,
+        "--mode",
+        "auto",
+        "--debug-log",
+        str(logf),
+        "PROMPT-MARKER",
+        extra_env={"MY_API_KEY": "KEY-MARKER"},
+    )
+    assert r.returncode == 0, r.stderr
+    text = logf.read_text()
+    events = [json.loads(line)["event"] for line in text.splitlines()]
+    assert events.count("model_call") == 2 and "tool" in events and "permission" in events
+    for marker in ("FILE-CONTENT", "MODEL-TEXT", "PROMPT-MARKER", "KEY-MARKER"):
+        assert marker not in text
+    assert logf.stat().st_mode & 0o777 == 0o600
+    assert "tokens in 20, out 10" in r.stderr

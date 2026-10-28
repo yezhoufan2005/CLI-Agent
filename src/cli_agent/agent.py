@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
+from cli_agent import log
 from cli_agent.messages import Message, TextBlock, ToolResultBlock, ToolUseBlock
 from cli_agent.permissions import PermissionPolicy
 from cli_agent.providers.base import Provider, ProviderError, RetryPolicy, with_retries
@@ -76,10 +78,27 @@ class Agent:
                     return RunResult("max_turns", last_text, turns, f"stopped after {turns} turns")
                 turns += 1
                 compact_history(session.messages, self.context_chars)
+                started = time.monotonic()
                 try:
                     completion = self._complete(session)
                 except ProviderError as err:
+                    log.event(
+                        "model_error", turn=turns, retryable=err.retryable, error=str(err)[:300]
+                    )
                     return RunResult("error", last_text, turns, str(err))
+                u = completion.usage
+                log.event(
+                    "model_call",
+                    turn=turns,
+                    secs=round(time.monotonic() - started, 3),
+                    model=completion.model,
+                    stop=completion.stop_reason,
+                    input_tokens=u.input_tokens,
+                    output_tokens=u.output_tokens,
+                    cache_read=u.cache_read_tokens,
+                    cache_write=u.cache_write_tokens,
+                    tool_calls=len(completion.message.tool_uses()),
+                )
                 session.usage.add(completion.usage)
                 msg = completion.message
                 if not msg.content:
@@ -121,6 +140,7 @@ class Agent:
             )
 
         def on_retry(attempt: int, err: ProviderError, wait: float) -> None:
+            log.event("model_retry", attempt=attempt, wait=round(wait, 2), error=str(err)[:300])
             self.ui.on_notice(f"model call failed ({err}); retry {attempt} in {wait:.1f}s")
 
         kwargs: dict[str, Any] = {"on_retry": on_retry}
@@ -146,6 +166,7 @@ class Agent:
         except Exception:  # noqa: BLE001 - summaries must never break the loop
             summary = f"{call.name} {json.dumps(call.input)[:200]}"
         verdict = self.policy.check(call.name, tool.effect, call.input)
+        log.event("permission", tool=call.name, decision=verdict.decision, reason=verdict.reason)
         if verdict.decision == "deny":
             self.ui.on_notice(f"denied: {summary} ({verdict.reason})")
             return ToolResultBlock(call.id, f"permission denied: {verdict.reason}", True)
@@ -161,6 +182,7 @@ class Agent:
                 rule = self.policy.remember(call.name, call.input)
                 self.ui.on_notice(f"added allow rule {rule!r} for this session")
         self.ui.on_tool_start(call, summary)
+        started = time.monotonic()
         try:
             result = tool.run(call.input, self.ctx)
         except ToolError as err:
@@ -169,6 +191,13 @@ class Agent:
             raise
         except Exception as err:  # noqa: BLE001 - a tool bug must not kill the session
             result = ToolResult(f"internal tool error: {type(err).__name__}: {err}", is_error=True)
+        log.event(
+            "tool",
+            tool=call.name,
+            secs=round(time.monotonic() - started, 3),
+            is_error=result.is_error,
+            output_chars=len(result.content),
+        )
         self.ui.on_tool_end(call, result)
         return ToolResultBlock(call.id, result.content or "(no output)", result.is_error)
 
