@@ -1,0 +1,366 @@
+{
+ "model": "claude-sonnet-4-6",
+ "seed": 7,
+ "results": [
+  {
+   "exercise": "accumulate",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 3,
+   "secs": 7.5,
+   "input_tokens": 28481,
+   "test_tail": [
+    "6 passed in 0.00s"
+   ]
+  },
+  {
+   "exercise": "acronym",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 3,
+   "secs": 8.8,
+   "input_tokens": 28675,
+   "test_tail": [
+    "9 passed in 0.00s"
+   ]
+  },
+  {
+   "exercise": "bottle-song",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 4,
+   "secs": 10.7,
+   "input_tokens": 41458,
+   "test_tail": [
+    "7 passed in 0.00s"
+   ]
+  },
+  {
+   "exercise": "crypto-square",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 3,
+   "secs": 10.1,
+   "input_tokens": 29592,
+   "test_tail": [
+    "8 passed in 0.00s"
+   ]
+  },
+  {
+   "exercise": "darts",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 5,
+   "secs": 17.3,
+   "input_tokens": 51162,
+   "test_tail": [
+    "13 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "dot-dsl",
+   "passed": false,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 4,
+   "secs": 24.7,
+   "input_tokens": 46173,
+   "test_tail": [
+    "1 failed, 6 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "eliuds-eggs",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 5,
+   "secs": 14.4,
+   "input_tokens": 47762,
+   "test_tail": [
+    "4 passed in 0.00s"
+   ]
+  },
+  {
+   "exercise": "game-of-life",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 4,
+   "secs": 13.0,
+   "input_tokens": 39384,
+   "test_tail": [
+    "8 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "hello-world",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 4,
+   "secs": 10.4,
+   "input_tokens": 38161,
+   "test_tail": [
+    "1 passed in 0.00s"
+   ]
+  },
+  {
+   "exercise": "house",
+   "passed": false,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 6,
+   "secs": 20.6,
+   "input_tokens": 66844,
+   "test_tail": [
+    "1 failed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "kindergarten-garden",
+   "passed": false,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 3,
+   "secs": 10.1,
+   "input_tokens": 32685,
+   "test_tail": [
+    "1 failed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "line-up",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 3,
+   "secs": 7.6,
+   "input_tokens": 29309,
+   "test_tail": [
+    "25 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "linked-list",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 4,
+   "secs": 14.9,
+   "input_tokens": 46167,
+   "test_tail": [
+    "24 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "matching-brackets",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 3,
+   "secs": 7.4,
+   "input_tokens": 28284,
+   "test_tail": [
+    "20 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "palindrome-products",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 5,
+   "secs": 25.5,
+   "input_tokens": 58736,
+   "test_tail": [
+    "13 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "pascals-triangle",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 3,
+   "secs": 7.6,
+   "input_tokens": 31274,
+   "test_tail": [
+    "10 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "pov",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 4,
+   "secs": 19.7,
+   "input_tokens": 43816,
+   "test_tail": [
+    "15 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "protein-translation",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 4,
+   "secs": 13.7,
+   "input_tokens": 41335,
+   "test_tail": [
+    "26 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "queen-attack",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 3,
+   "secs": 8.9,
+   "input_tokens": 30815,
+   "test_tail": [
+    "14 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "rail-fence-cipher",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 3,
+   "secs": 9.6,
+   "input_tokens": 31075,
+   "test_tail": [
+    "6 passed in 0.00s"
+   ]
+  },
+  {
+   "exercise": "raindrops",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 5,
+   "secs": 14.0,
+   "input_tokens": 51324,
+   "test_tail": [
+    "18 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "relative-distance",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 4,
+   "secs": 23.1,
+   "input_tokens": 46997,
+   "test_tail": [
+    "9 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "resistor-color-duo",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 3,
+   "secs": 7.4,
+   "input_tokens": 29218,
+   "test_tail": [
+    "7 passed in 0.00s"
+   ]
+  },
+  {
+   "exercise": "robot-simulator",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 4,
+   "secs": 10.9,
+   "input_tokens": 39921,
+   "test_tail": [
+    "18 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "say",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 5,
+   "secs": 15.3,
+   "input_tokens": 52854,
+   "test_tail": [
+    "20 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "sieve",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 4,
+   "secs": 10.2,
+   "input_tokens": 42272,
+   "test_tail": [
+    "5 passed in 0.00s"
+   ]
+  },
+  {
+   "exercise": "sum-of-multiples",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 4,
+   "secs": 17.2,
+   "input_tokens": 40125,
+   "test_tail": [
+    "16 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "two-bucket",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 3,
+   "secs": 12.5,
+   "input_tokens": 32007,
+   "test_tail": [
+    "11 passed in 0.01s"
+   ]
+  },
+  {
+   "exercise": "two-fer",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 4,
+   "secs": 11.3,
+   "input_tokens": 38482,
+   "test_tail": [
+    "3 passed in 0.00s"
+   ]
+  },
+  {
+   "exercise": "yacht",
+   "passed": true,
+   "agent_exit": 0,
+   "status": "done",
+   "turns": 3,
+   "secs": 10.5,
+   "input_tokens": 31300,
+   "test_tail": [
+    "29 passed in 0.01s"
+   ]
+  }
+ ]
+}
