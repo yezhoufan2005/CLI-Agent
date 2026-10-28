@@ -103,8 +103,9 @@ def test_edit_file(ctx: ToolContext) -> None:
 
 
 def test_edit_whitespace_hint(ctx: ToolContext) -> None:
-    (ctx.root / "m.py").write_text("def f():\n    return 1\n")
+    (ctx.root / "m.py").write_text("def f():\n    return 1\n    return 1\n")
     ReadFile().run({"path": "m.py"}, ctx)
+    # Two candidate lines: the fuzzy fallback refuses, the error explains why.
     with pytest.raises(ToolError, match="indentation"):
         EditFile().run({"path": "m.py", "old_string": "  return 1  ", "new_string": "x"}, ctx)
 
@@ -296,3 +297,45 @@ def test_search_stops_catastrophic_regex(ctx: ToolContext, monkeypatch: pytest.M
     with pytest.raises(ToolError, match="longer than"):
         SearchFiles().run({"pattern": "(a+)+$"}, ctx)
     assert time.monotonic() - started < 10
+
+
+@pytest.mark.parametrize(
+    ("content", "old", "new", "expected"),
+    [
+        # Model dropped the indentation of a nested block.
+        (
+            "class A:\n    def f(self):\n        return 1\n",
+            "def f(self):\n    return 1\n",
+            "def f(self):\n    return 2\n",
+            "class A:\n    def f(self):\n        return 2\n",
+        ),
+        # Trailing whitespace in the file.
+        ("x = 1   \ny = 2\n", "x = 1\ny = 2", "x = 3\ny = 4", "x = 3\ny = 4\n"),
+        # CRLF file, LF old_string; CRLF is kept.
+        (
+            "a = 1\r\nb = 2\r\nc = 3\r\n",
+            "a = 1\nb = 2\n",
+            "a = 10\nb = 20\n",
+            "a = 10\r\nb = 20\r\nc = 3\r\n",
+        ),
+    ],
+)
+def test_edit_whitespace_tolerant_fallback(
+    ctx: ToolContext, content: str, old: str, new: str, expected: str
+) -> None:
+    (ctx.root / "m.py").write_bytes(content.encode())
+    ReadFile().run({"path": "m.py"}, ctx)
+    res = EditFile().run({"path": "m.py", "old_string": old, "new_string": new}, ctx)
+    assert "ignoring whitespace" in res.content
+    assert (ctx.root / "m.py").read_bytes() == expected.encode()
+
+
+def test_fuzzy_edit_refuses_ambiguous_or_different_text(ctx: ToolContext) -> None:
+    (ctx.root / "m.py").write_text("if a:\n    x = 1\nif b:\n        x = 1\n")
+    ReadFile().run({"path": "m.py"}, ctx)
+    with pytest.raises(ToolError, match="not found"):
+        # Trailing space: no exact match, and two lines match fuzzily -> refuse.
+        EditFile().run({"path": "m.py", "old_string": "x = 1 ", "new_string": "x = 2"}, ctx)
+    with pytest.raises(ToolError, match="not found"):
+        EditFile().run({"path": "m.py", "old_string": "x = 9\n", "new_string": "y"}, ctx)
+    assert (ctx.root / "m.py").read_text() == "if a:\n    x = 1\nif b:\n        x = 1\n"

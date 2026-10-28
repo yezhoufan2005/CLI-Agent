@@ -232,10 +232,24 @@ class EditFile:
         text = _read_text(path)
         count = text.count(old)
         if count == 0:
-            hint = ""
-            if old.strip() and old.strip() in text:
-                hint = " (it matches if leading/trailing whitespace is ignored; check indentation)"
-            raise ToolError(f"old_string not found in {display_path(ctx.root, path)}{hint}")
+            fuzzy = fuzzy_replace(text, old, new)
+            if fuzzy is None:
+                hint = ""
+                if old.strip() and old.strip() in text:
+                    hint = " (it matches if surrounding whitespace is ignored; check indentation)"
+                raise ToolError(f"old_string not found in {display_path(ctx.root, path)}{hint}")
+            # Exactly one place matches once whitespace differences are ignored.
+            updated, line = fuzzy
+            before_bytes = path.read_bytes()
+            _atomic_write(path, updated)
+            if ctx.checkpoints is not None:
+                ctx.checkpoints.record(path, before_bytes, updated)
+            rel = display_path(ctx.root, path)
+            return ToolResult(
+                f"edited {rel}: 1 replacement at line {line} (old_string matched only after "
+                "ignoring whitespace differences; new_string was re-indented to match)",
+                display=unified_diff(rel, text, updated),
+            )
         if count > 1 and not replace_all:
             raise ToolError(
                 f"old_string occurs {count} times; add surrounding context to make it unique "
@@ -253,6 +267,75 @@ class EditFile:
             f"edited {rel}: {n} replacement(s), first at line {line}",
             display=unified_diff(rel, text, updated),
         )
+
+
+def _indent(line: str) -> str:
+    return line[: len(line) - len(line.lstrip(" \t"))]
+
+
+def fuzzy_replace(text: str, old: str, new: str) -> tuple[str, int] | None:
+    """Replace `old` when it matches exactly one run of whole lines except for
+    whitespace: trailing spaces, CRLF vs LF, or a uniform extra indentation.
+
+    Returns (updated text, 1-based line) or None if there is no unique match.
+    Ambiguity is never resolved by guessing.
+    """
+    old_lines = old.split("\n")
+    if old_lines and old_lines[-1] == "":
+        old_lines = old_lines[:-1]
+    old_lines = [line.rstrip("\r") for line in old_lines]
+    if not any(line.strip() for line in old_lines):
+        return None
+    file_lines = text.splitlines(keepends=True)
+    n = len(old_lines)
+    matches: list[tuple[int, str]] = []
+    for i in range(len(file_lines) - n + 1):
+        window = [w.rstrip("\r\n") for w in file_lines[i : i + n]]
+        prefix = _uniform_prefix(window, old_lines)
+        if prefix is not None:
+            matches.append((i, prefix))
+            if len(matches) > 1:
+                return None
+    if len(matches) != 1:
+        return None
+    i, prefix = matches[0]
+    window = file_lines[i : i + n]
+    # Whole lines are replaced, so keep the window's own line endings.
+    eol = "\r\n" if window[0].endswith("\r\n") else "\n"
+    last_eol = window[-1][len(window[-1].rstrip("\r\n")) :]
+    if new == "":
+        replacement = ""
+    else:
+        new_lines = new.removesuffix("\n").split("\n")
+        body = eol.join(
+            prefix + ln.rstrip("\r") if ln.strip() else ln.rstrip("\r") for ln in new_lines
+        )
+        replacement = body + last_eol
+    updated = "".join(file_lines[:i]) + replacement + "".join(file_lines[i + n :])
+    return updated, i + 1
+
+
+def _uniform_prefix(window: list[str], old_lines: list[str]) -> str | None:
+    """The indentation the file adds to every non-blank old line, if the lines
+    are otherwise equal (ignoring trailing whitespace); else None."""
+    prefix: str | None = None
+    for w, o in zip(window, old_lines, strict=True):
+        w, o = w.rstrip(), o.rstrip()
+        if not o.strip():
+            if w.strip():
+                return None
+            continue
+        if w.strip() != o.strip():
+            return None
+        wi, oi = _indent(w), _indent(o)
+        if not wi.endswith(oi):
+            return None
+        p = wi[: len(wi) - len(oi)]
+        if prefix is None:
+            prefix = p
+        elif p != prefix:
+            return None
+    return prefix
 
 
 def _walk(root: Path, start: Path, limit: int = MAX_WALK_FILES) -> tuple[list[Path], bool]:

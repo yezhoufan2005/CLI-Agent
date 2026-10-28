@@ -5,6 +5,7 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 ## Unreleased
 
 ### Added
+- `edit_file` falls back to a whitespace-tolerant match (indentation offset, trailing spaces, CRLF) when the exact text is not found and exactly one place matches; ambiguous matches are still refused.
 - `cli-agent doctor` also checks bash, git, the state directory, shell-sandbox availability, and configured MCP server commands.
 
 ### Changed
