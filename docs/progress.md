@@ -2,6 +2,13 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — Regex bound, undo (PRs #20–#21)
+
+- PR #20 (B-REGEX-TIMEOUT): `search_files` runs in a spawned child process with a 30 s limit (CI: catastrophic `(a+)+$` returns an error in under 10 s). Costs about 25 ms per search. `__main__` gained an import guard, which spawn requires; covered by a CLI test of `python -m cli_agent` and checked manually from an installed wheel.
+- PR #21 (B-UNDO): per-prompt file checkpoints. `cli-agent undo` and `/undo` restore originals and delete files the agent created. A file is skipped if its content hash no longer matches what the agent wrote, i.e. the user edited it afterwards. Paths in a tampered checkpoint file can't escape the workspace (CI). Shell-made changes are not tracked (documented).
+
+Next: streaming for the OpenAI provider; dogfood cli-agent on this repo (real task, real model); MCP client (B-MCP) if time allows.
+
 ## 2026-10-28 — Context management verified end to end (PR #19)
 
 - New E2E task `long-context`: read 8 files one at a time under `context_chars = 40000` (per-task `config.toml`, now supported by `e2e.sh`, which also always writes `.debug.jsonl`). `verify.sh` requires that compaction actually happened.
