@@ -150,3 +150,14 @@ def test_non_streaming_still_works() -> None:
     body = json.dumps({"content": [{"type": "text", "text": "hey"}], "stop_reason": "end_turn"})
     c = provider(body.encode()).complete(system="", messages=MSGS, tools=[], max_tokens=5)
     assert c.message.text() == "hey"
+
+
+def test_keepalive_only_stream_hits_deadline() -> None:
+    import itertools
+
+    from cli_agent.providers.base import with_deadline
+
+    with pytest.raises(ProviderError, match="did not finish") as info:
+        for _ in with_deadline(itertools.repeat(": keepalive"), seconds=0.05):
+            pass
+    assert info.value.retryable

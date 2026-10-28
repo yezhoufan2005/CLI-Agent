@@ -22,6 +22,7 @@ from cli_agent.providers.base import (
     ProviderError,
     ToolSpec,
     parse_retry_after,
+    with_deadline,
 )
 
 API_VERSION = "2023-06-01"
@@ -126,7 +127,7 @@ class AnthropicProvider:
                     except ValueError as err:
                         raise ProviderError("response was not valid JSON", retryable=True) from err
                     return _parse_safely(lambda: parse_response(data))
-                events = _sse_events(resp.iter_lines())
+                events = _sse_events(with_deadline(resp.iter_lines()))
                 return _parse_safely(lambda: parse_response(accumulate_stream(events, on_text)))
         except httpx.TimeoutException as err:
             raise ProviderError(f"request timed out: {err}", retryable=True) from err
