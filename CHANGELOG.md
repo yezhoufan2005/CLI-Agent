@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Added
+- `cli-agent doctor` also checks bash, git, the state directory, shell-sandbox availability, and configured MCP server commands.
+
 ### Changed
 - A reply cut off at the output token limit with no tool call no longer ends the run: the agent asks the model to continue (up to 3 times in a row) before stopping with exit code 3.
 

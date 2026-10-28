@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from cli_agent.permissions import MODES, PermissionPolicy
 from cli_agent.prompt import build_system_prompt
 from cli_agent.providers.base import Provider, ProviderError
 from cli_agent.sandbox import SANDBOX_MODES, Sandbox, SandboxUnavailable
+from cli_agent.sandbox import probe as sandbox_probe
 from cli_agent.sandbox import resolve as resolve_sandbox
 from cli_agent.session import Session, SessionStore, default_state_dir, new_session_id
 from cli_agent.tools import ToolContext, default_tools
@@ -214,10 +216,44 @@ def cmd_sessions(store: SessionStore, limit: int = DEFAULT_SESSIONS_LIMIT) -> in
     return EXIT_OK
 
 
+def environment_checks(cfg: Config) -> list[str]:
+    """Local prerequisites, one line each; "✗" lines explain what to do."""
+    lines = []
+    for tool, why in (("bash", "run_shell needs it"), ("git", "used for change warnings")):
+        found = shutil.which(tool)
+        lines.append(f"✓ {tool}: {found}" if found else f"✗ {tool} not found on PATH ({why})")
+    state = default_state_dir()
+    try:
+        state.mkdir(parents=True, exist_ok=True, mode=0o700)
+        probe = state / ".doctor"
+        probe.write_text("ok")
+        probe.unlink()
+        lines.append(f"✓ state directory writable: {state}")
+    except OSError as err:
+        lines.append(f"✗ state directory {state} not writable ({err}); sessions cannot be saved")
+    reason = sandbox_probe()
+    if reason is None:
+        lines.append(f"✓ shell sandbox available (configured: {cfg.sandbox})")
+    else:
+        mark = "✗" if cfg.sandbox == "required" else "-"
+        lines.append(f"{mark} shell sandbox unavailable: {reason} (configured: {cfg.sandbox})")
+    for server in cfg.mcp_servers:
+        exe = server.command[0]
+        ok = shutil.which(exe) or Path(exe).is_file()
+        lines.append(
+            f"✓ MCP server {server.name}: {exe}"
+            if ok
+            else f"✗ MCP server {server.name}: command {exe!r} not found"
+        )
+    return lines
+
+
 def cmd_doctor(cfg: Config) -> int:
     ok = True
     print(f"cli-agent {__version__}, Python {sys.version.split()[0]}")
     print("config: " + json.dumps(cfg.redacted()))
+    for line in environment_checks(cfg):
+        print(line)
     if cfg.provider == "anthropic" and not (cfg.api_key or cfg.auth_token):
         print("✗ no credentials: set ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN for a proxy)")
         return EXIT_ERROR
