@@ -99,6 +99,8 @@ class Agent:
             self.ui.on_notice("previous run was interrupted; recorded unfinished tool calls")
         session.add_user_text(prompt)
         self.save(session)
+        if self.ctx.checkpoints is not None:
+            self.ctx.checkpoints.begin(prompt)
         turns = 0
         last_text = ""
         try:

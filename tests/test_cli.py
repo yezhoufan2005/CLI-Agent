@@ -229,3 +229,17 @@ def test_search_works_through_python_m_entry(tmp_path: Path) -> None:
     assert r.returncode == 0, r.stderr
     ends = [json.loads(x) for x in r.stdout.splitlines() if '"tool_end"' in x]
     assert "f.py:1: NEEDLE = 1" in ends[0]["output"]
+
+
+def test_undo_subcommand(tmp_path: Path) -> None:
+    script = [
+        {"tool_calls": [{"name": "write_file", "input": {"path": "made.txt", "content": "x"}}]},
+        {"text": "made"},
+    ]
+    r = run_cli(tmp_path, script, "--mode", "auto-edit", "make a file")
+    assert r.returncode == 0 and (tmp_path / "work/made.txt").exists()
+    r = run_cli(tmp_path, [], "undo")
+    assert r.returncode == 0 and "deleted made.txt" in r.stdout
+    assert not (tmp_path / "work/made.txt").exists()
+    r = run_cli(tmp_path, [], "undo")
+    assert "nothing to undo" in r.stdout

@@ -5,10 +5,13 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from cli_agent.providers.base import ToolSpec
 from cli_agent.sandbox import Sandbox
+
+if TYPE_CHECKING:
+    from cli_agent.checkpoint import Checkpoints
 
 # What a tool can do to the world. Drives the permission decision.
 Effect = Literal["read", "write", "execute"]
@@ -30,6 +33,8 @@ class ToolContext:
     """Files the model has read this session; edits require a prior read."""
     sandbox: Sandbox | None = None
     """When set, shell commands run inside it."""
+    checkpoints: Checkpoints | None = None
+    """When set, file tools record originals so the user can undo."""
 
 
 @dataclass
