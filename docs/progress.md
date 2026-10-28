@@ -13,7 +13,8 @@ Newest entry first. Each entry: what changed, what was verified (with evidence),
 - Results (same 20 instances, `--max-turns 60`; reports in `docs/bench/swebench-lite-sympy-seed1-*.json`):
   - claude-sonnet-4-6: **12/20**
   - claude-haiku-4-5: **13/20**
-- Finding: 4 of haiku's 7 misses ended with status `max_tokens`. The model's reply was truncated with no tool call and the agent loop stopped. That is a product defect: the loop should ask the model to continue. Fix in progress (next PR).
+- Finding: 4 of haiku's 7 misses ended with status `max_tokens`. The model's reply was truncated with no tool call and the agent loop stopped. That is a product defect: the loop should ask the model to continue.
+- Fix (PR #36): the loop now sends a continue prompt after a truncated reply, up to 3 times in a row. Rerun of those 4 haiku instances with the fix: all 4 ended `done` (none stopped at max_tokens), and **2/4 now resolve** (17655, 19254). With this fix the haiku subset result would be 15/20. I did not rerun the full 20 for either model, so 15/20 is an estimate from the rerun, not a fresh measurement.
 
 ## 2026-10-28 — Real third-party integrations verified (manual)
 
