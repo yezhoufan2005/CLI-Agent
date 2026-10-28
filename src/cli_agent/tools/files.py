@@ -63,16 +63,25 @@ def _read_text(path: Path) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def encode_text(text: str) -> bytes:
+    """The bytes written for model-supplied text (lone surrogates become '?')."""
+    return text.encode("utf-8", "replace")
+
+
 def _atomic_write(path: Path, text: str) -> None:
+    _atomic_write_bytes(path, encode_text(text))
+
+
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     mode = path.stat().st_mode & 0o7777 if path.exists() else 0o666 & ~_umask()
     # mkstemp creates a fresh file with O_EXCL, so a pre-planted symlink at the
     # temp name cannot redirect the write outside the workspace.
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+        with os.fdopen(fd, "wb") as fh:
             os.fchmod(fh.fileno(), mode)
-            fh.write(text)
+            fh.write(data)
         os.replace(tmp, path)
     except BaseException:
         with contextlib.suppress(OSError):
@@ -177,9 +186,10 @@ class WriteFile:
         if existed and path not in ctx.read_files:
             raise ToolError("file exists; read it with read_file before overwriting it")
         before = _read_text(path) if existed else ""
+        before_bytes = path.read_bytes() if existed else None
         _atomic_write(path, content)
         if ctx.checkpoints is not None:
-            ctx.checkpoints.record(path, before if existed else None, content)
+            ctx.checkpoints.record(path, before_bytes, content)
         ctx.read_files.add(path)
         verb = "overwrote" if existed else "created"
         rel = display_path(ctx.root, path)
@@ -232,9 +242,10 @@ class EditFile:
                 "or set replace_all"
             )
         updated = text.replace(old, new) if replace_all else text.replace(old, new, 1)
+        before_bytes = path.read_bytes()
         _atomic_write(path, updated)
         if ctx.checkpoints is not None:
-            ctx.checkpoints.record(path, text, updated)
+            ctx.checkpoints.record(path, before_bytes, updated)
         line = text[: text.index(old)].count("\n") + 1
         n = count if replace_all else 1
         rel = display_path(ctx.root, path)

@@ -13,6 +13,11 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 - `search_files` runs in a child process with a 30 s limit, so a catastrophic regex cannot hang the agent.
 - `context_chars` config key; on a "prompt is too long" error the agent compacts history and retries.
 
+### Security
+- Credential environment variables are removed from the agent's own environment after config load, so no child process (including multiprocessing helpers and MCP servers) inherits them.
+- MCP servers start in a neutral directory instead of the workspace; server output is bounded; launcher child processes are killed on exit; colliding tool names and oversized schemas are rejected.
+- Undo never follows symlinks and restores exact original bytes.
+
 ### Changed
 - Elided tool output now names the call it replaced and repeats the note the model wrote after it, so long sessions don't loop re-reading files.
 

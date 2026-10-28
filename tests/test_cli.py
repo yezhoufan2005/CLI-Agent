@@ -278,3 +278,31 @@ def test_session_token_budget_exit_code(tmp_path: Path) -> None:
     script = [{"tool_calls": [{"name": "list_files", "input": {}}]}] * 5
     r = run_cli(tmp_path, script, "--max-session-tokens", "15", "loop")
     assert r.returncode == 3 and "token budget reached" in r.stderr
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="/proc is Linux-only")
+def test_no_child_process_inherits_credentials(tmp_path: Path) -> None:
+    # search_files starts a multiprocessing helper; it must not hold the key either.
+    (tmp_path / "work").mkdir()
+    cmd = (
+        "for p in /proc/[0-9]*; do grep -qa FAKE_KEY_VALUE $p/environ 2>/dev/null "
+        "&& echo LEAK; done; true"
+    )
+    script = [
+        {"tool_calls": [{"name": "search_files", "input": {"pattern": "x"}}]},
+        {"tool_calls": [{"name": "run_shell", "input": {"command": cmd}}]},
+        {"text": "done"},
+    ]
+    r = run_cli(
+        tmp_path,
+        script,
+        "--mode",
+        "auto",
+        "--json",
+        "go",
+        extra_env={"ANTHROPIC_API_KEY": "FAKE_KEY_VALUE"},
+    )
+    assert r.returncode == 0, r.stderr
+    ends = [json.loads(x) for x in r.stdout.splitlines() if '"tool_end"' in x]
+    shell_out = ends[-1]["output"]
+    assert "LEAK" not in shell_out

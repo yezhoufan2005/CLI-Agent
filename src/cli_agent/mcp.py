@@ -16,8 +16,10 @@ import json
 import os
 import queue
 import re
+import signal
 import subprocess
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -27,6 +29,9 @@ from cli_agent.tools.shell import scrubbed_env
 PROTOCOL_VERSION = "2025-06-18"
 START_TIMEOUT = 30.0
 CALL_TIMEOUT = 120.0
+MAX_LINE_BYTES = 10_000_000
+MAX_SCHEMA_CHARS = 20_000
+MAX_QUEUED = 1000
 _NAME_OK = re.compile(r"[^a-zA-Z0-9_-]")
 
 
@@ -43,6 +48,8 @@ class ServerConfig:
 
 class MCPServer:
     def __init__(self, cfg: ServerConfig, cwd: str):
+        """`cwd` must not be the workspace: interpreters and package runners load
+        code from their working directory (a planted json.py, node_modules)."""
         self.cfg = cfg
         env = scrubbed_env(dict(os.environ))
         env.update(cfg.env)  # explicitly configured values are passed even if secret-looking
@@ -59,34 +66,68 @@ class MCPServer:
         except OSError as err:
             raise MCPError(f"cannot start MCP server {cfg.name!r}: {err}") from err
         self._next_id = 0
-        self._lines: queue.Queue[bytes | None] = queue.Queue()
+        # Only replies (messages with an id) are queued, and the queue is
+        # bounded, so a server flooding notifications cannot exhaust memory.
+        self._replies: queue.Queue[dict[str, Any] | None] = queue.Queue(MAX_QUEUED)
         threading.Thread(target=self._read, daemon=True).start()
 
     def _read(self) -> None:
         assert self.proc.stdout is not None
-        for line in self.proc.stdout:
-            self._lines.put(line)
-        self._lines.put(None)
+        while True:
+            line = self.proc.stdout.readline(MAX_LINE_BYTES + 1)
+            if not line:
+                break
+            if len(line) > MAX_LINE_BYTES:
+                # Discard the rest of an oversized line.
+                while line and not line.endswith(b"\n"):
+                    line = self.proc.stdout.readline(MAX_LINE_BYTES)
+                continue
+            try:
+                msg = json.loads(line)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue  # servers sometimes log to stdout; ignore non-JSON lines
+            if not isinstance(msg, dict) or "id" not in msg:
+                continue  # notifications
+            if "method" in msg:
+                self._answer_server_request(msg)
+                continue
+            with contextlib.suppress(queue.Full):
+                self._replies.put(msg, timeout=5)
+        with contextlib.suppress(queue.Full):
+            self._replies.put(None, timeout=5)
+
+    def _answer_server_request(self, msg: dict[str, Any]) -> None:
+        """Reply to server-to-client requests so servers don't stall on them."""
+        if msg.get("method") == "ping":
+            reply: dict[str, Any] = {"jsonrpc": "2.0", "id": msg["id"], "result": {}}
+        else:
+            reply = {
+                "jsonrpc": "2.0",
+                "id": msg["id"],
+                "error": {"code": -32601, "message": "method not supported"},
+            }
+        with contextlib.suppress(MCPError):
+            self._send(reply)
 
     def request(self, method: str, params: dict[str, Any], timeout: float) -> Any:
         self._next_id += 1
         rid = self._next_id
         self._send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
+        deadline = time.monotonic() + timeout
         while True:
+            remaining = deadline - time.monotonic()
             try:
-                line = self._lines.get(timeout=timeout)
+                if remaining <= 0:
+                    raise queue.Empty
+                msg = self._replies.get(timeout=remaining)
             except queue.Empty:
                 raise MCPError(
                     f"{self.cfg.name}: no reply to {method} within {timeout:g}s"
                 ) from None
-            if line is None:
+            if msg is None:
                 raise MCPError(f"{self.cfg.name}: server exited")
-            try:
-                msg = json.loads(line)
-            except json.JSONDecodeError:
-                continue  # servers sometimes log to stdout; ignore non-JSON lines
-            if not isinstance(msg, dict) or msg.get("id") != rid:
-                continue  # notifications, or server-to-client requests we don't support
+            if msg.get("id") != rid:
+                continue  # a late reply to an earlier, timed-out request
             if "error" in msg:
                 err = msg["error"] if isinstance(msg["error"], dict) else {}
                 raise MCPError(f"{self.cfg.name}: {err.get('message', 'error')}")
@@ -119,24 +160,40 @@ class MCPServer:
         self.notify("notifications/initialized")
         tools: list[dict[str, Any]] = []
         cursor: str | None = None
+        seen: set[str] = set()
         for _ in range(50):
             params = {"cursor": cursor} if cursor else {}
-            result = self.request("tools/list", params, START_TIMEOUT) or {}
-            tools.extend(t for t in result.get("tools", []) if isinstance(t, dict))
+            result = self.request("tools/list", params, START_TIMEOUT)
+            if not isinstance(result, dict):
+                raise MCPError(f"{self.cfg.name}: malformed tools/list result")
+            listed = result.get("tools")
+            if isinstance(listed, list):
+                tools.extend(t for t in listed if isinstance(t, dict))
             cursor = result.get("nextCursor")
-            if not cursor:
+            if not isinstance(cursor, str) or not cursor or cursor in seen:
                 break
+            seen.add(cursor)
         return tools
 
     def close(self) -> None:
+        """Stop the server and anything it started (launchers like npx or sh -c)."""
         with contextlib.suppress(OSError):
             if self.proc.stdin:
                 self.proc.stdin.close()
         try:
             self.proc.wait(timeout=2)
         except subprocess.TimeoutExpired:
-            self.proc.kill()
-            self.proc.wait()
+            pass
+        # TERM the whole group, give it a moment, then KILL whatever is left:
+        # the leader exiting says nothing about its children.
+        with contextlib.suppress(OSError):
+            os.killpg(self.proc.pid, signal.SIGTERM)
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            self.proc.wait(timeout=1)
+        with contextlib.suppress(OSError):
+            os.killpg(self.proc.pid, signal.SIGKILL)
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            self.proc.wait(timeout=2)
 
 
 class MCPTool:
@@ -151,8 +208,15 @@ class MCPTool:
         desc = str(spec.get("description") or "")[:2000]
         self.description = f"[MCP server {server.cfg.name}] {desc}".strip()
         schema = spec.get("inputSchema")
+        # Providers require an object schema; an oversized one would also bypass
+        # the description cap and flood the prompt.
+        ok = (
+            isinstance(schema, dict)
+            and schema.get("type") == "object"
+            and len(json.dumps(schema)) <= MAX_SCHEMA_CHARS
+        )
         self.input_schema: dict[str, Any] = (
-            schema if isinstance(schema, dict) else {"type": "object", "properties": {}}
+            schema if ok and isinstance(schema, dict) else {"type": "object", "properties": {}}
         )
 
     def summarize(self, args: dict[str, Any]) -> str:
@@ -181,9 +245,13 @@ class MCPTool:
 
 
 def start_servers(
-    configs: list[ServerConfig], cwd: str
+    configs: list[ServerConfig], cwd: str, reserved: set[str] | None = None
 ) -> tuple[list[MCPServer], list[MCPTool], list[str]]:
-    """Start every server; a failing server is reported, not fatal."""
+    """Start every server; a failing server is reported, not fatal.
+
+    Tool names that collide with `reserved` or with an earlier tool are skipped.
+    """
+    taken = set(reserved or ())
     servers: list[MCPServer] = []
     tools: list[MCPTool] = []
     problems: list[str] = []
@@ -200,7 +268,15 @@ def start_servers(
             server.close()
             continue
         servers.append(server)
-        tools.extend(MCPTool(server, s) for s in specs if s.get("name"))
+        for spec in specs:
+            if not spec.get("name"):
+                continue
+            tool = MCPTool(server, spec)
+            if tool.name in taken:
+                problems.append(f"MCP tool {tool.name} skipped: name already in use")
+                continue
+            taken.add(tool.name)
+            tools.append(tool)
     return servers, tools, problems
 
 

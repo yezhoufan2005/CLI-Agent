@@ -165,9 +165,10 @@ def accumulate_stream(lines: Iterator[str], on_text: Callable[[str], None]) -> d
         if not isinstance(chunk, dict):
             raise ProviderError("malformed stream chunk", retryable=True)
         if isinstance(chunk.get("error"), dict):
-            raise ProviderError(
-                f"stream error: {chunk['error'].get('message', 'unknown')}", retryable=True
-            )
+            err_text = str(chunk["error"].get("message", "unknown"))
+            # A context-length error will not go away on retry; let the agent compact.
+            overflow = "context" in err_text.lower() and "length" in err_text.lower()
+            raise ProviderError(f"stream error: {err_text}", retryable=not overflow)
         model = str(chunk.get("model") or model)
         if isinstance(chunk.get("usage"), dict):
             usage = chunk["usage"]
@@ -178,14 +179,19 @@ def accumulate_stream(lines: Iterator[str], on_text: Callable[[str], None]) -> d
                 text.append(piece)
                 on_text(piece)
             for frag in delta.get("tool_calls") or []:
-                slot = calls.setdefault(
-                    int(frag.get("index", len(calls))), {"id": "", "name": "", "args": []}
-                )
+                if "index" in frag:
+                    index = int(frag["index"])
+                elif frag.get("id") or not calls:
+                    index = len(calls)  # no index: a new id starts a new call
+                else:
+                    index = max(calls)  # no index, no id: continues the last call
+                slot = calls.setdefault(index, {"id": "", "name": "", "args": []})
                 if frag.get("id"):
                     slot["id"] = frag["id"]
                 fn = frag.get("function") or {}
                 if fn.get("name"):
-                    slot["name"] += fn["name"]
+                    # Some servers repeat the full name in every fragment.
+                    slot["name"] = fn["name"]
                 if fn.get("arguments"):
                     slot["args"].append(str(fn["arguments"]))
             if choice.get("finish_reason"):

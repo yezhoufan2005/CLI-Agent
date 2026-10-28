@@ -2,6 +2,33 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-28 — Third independent review: fixes (PR #29)
+
+The reviewer checked main at 32ec020 (undo, MCP, streaming, search subprocess) and reproduced 14 findings with scripts in /tmp/review3. Status:
+
+| # | Sev | Finding | Status |
+|---|---|---|---|
+| 1 | high | The `spawn` resource tracker inherited the full environment, so `ANTHROPIC_API_KEY` was readable via /proc (regression of review-1 #10) | fixed: credential variables are removed from `os.environ` right after config load. CI test fails without the fix (checked) |
+| 2 | high | MCP servers started with cwd = workspace, so a planted `json.py` or `node_modules` ran even in read-only mode | fixed: servers start in `$XDG_STATE_HOME/cli-agent/mcp-cwd` |
+| 3 | med | Undo restored non-UTF-8 files with mangled bytes | fixed: checkpoints store exact original bytes (base64, format v2) and writes are byte-exact (CI) |
+| 4 | med | Undo followed a symlink swapped in by the user | fixed: any symlink component means skip (CI) |
+| 5 | med | An MCP timeout was reset by each notification; Ctrl-C during startup gave a traceback | fixed: one deadline per request; startup is inside try/finally and exits 130 |
+| 6 | med | MCP memory was unbounded (notification flood) | fixed: only replies are queued, the queue is bounded, and lines are capped at 10 MB. Repro: RSS flat at 14 MB |
+| 7 | med | Duplicate tool names, repeated cursors, unchecked schemas | fixed: collisions are skipped with a notice; repeated cursors stop pagination; schemas must be an object and ≤ 20k chars (CI) |
+| 8 | med | `close()` left launcher children running | fixed: TERM then KILL the process group. Repro: 0 leftovers |
+| 9 | med | Crash in a workspace whose path is not valid UTF-8 | fixed: `os.fsencode` |
+| 10 | low | Empty prompts pushed real checkpoints out of the cap | fixed (CI) |
+| 11 | low | Concurrent processes in one workspace lose checkpoints | **open**: last writer wins. Documented here; needs a file lock |
+| 12 | low | A corrupt checkpoint file crashed every run | fixed: validated and ignored if wrong (CI) |
+| 13 | low | Overflow retry fired on max_tokens-caused errors | fixed: those are excluded, and shrinking is capped at 4 rounds (CI) |
+| 14 | low | OpenAI stream: repeated names, index-less fragments, in-stream context error marked retryable | fixed (CI) |
+
+Also: MCP now answers server `ping` and rejects other server-to-client requests, so servers no longer stall waiting for a reply. Unverified suspicions that were not acted on:
+- the 30 s search limit could misattribute slowness on very large trees
+- no overall deadline for keepalive-only OpenAI streams
+
+`./scripts/check.sh`: 211 passed.
+
 ## 2026-10-28 — Capability benchmark: Exercism Python (PR #28)
 
 - `scripts/bench.py` gives the agent only an exercise's instructions and stub file, then copies in the hidden tests from [exercism/python](https://github.com/exercism/python) and runs pytest on them. Run with `--exercises <checkout>/exercises/practice`; local only, since it needs a real model.
