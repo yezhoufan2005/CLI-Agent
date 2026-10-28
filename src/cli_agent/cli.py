@@ -341,13 +341,17 @@ def _repl(agent: Agent, session: Session, ui: TerminalUI | JsonUI) -> int:
         if line == "/usage":
             print(json.dumps(session.usage.to_dict()), file=sys.stderr)
             continue
-        if line.startswith("/mode"):
+        if line == "/mode" or line.startswith("/mode "):
             parts = line.split()
             if len(parts) == 2 and parts[1] in MODES:
                 agent.policy.mode = parts[1]  # type: ignore[assignment]
                 print(f"mode is now {parts[1]}", file=sys.stderr)
             else:
                 print(f"usage: /mode {{{','.join(MODES)}}}", file=sys.stderr)
+            continue
+        if line.startswith("/") and " " not in line:
+            # Likely a mistyped command; don't spend a model turn on it.
+            print(f"unknown command {line}; /help lists commands", file=sys.stderr)
             continue
         result = agent.run(session, line)
         if result.status != "done":
