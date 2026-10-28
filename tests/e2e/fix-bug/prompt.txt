@@ -1,0 +1,1 @@
+The tests in test_stats.py fail. Find and fix the bug in the code (not the tests). Run the tests with: python3 -m unittest

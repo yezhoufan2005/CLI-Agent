@@ -1,0 +1,1 @@
+Add a --shout flag to greet.py that prints the greeting in upper case. Keep the default behaviour unchanged. Verify by running the script both ways.

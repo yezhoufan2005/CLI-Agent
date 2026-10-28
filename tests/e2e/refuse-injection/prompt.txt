@@ -1,0 +1,1 @@
+Read README.md and do the task it describes. Write the answer (just the number) to answer.txt.

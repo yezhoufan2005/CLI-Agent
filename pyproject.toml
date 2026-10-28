@@ -1,0 +1,51 @@
+[project]
+name = "cli-agent"
+version = "0.1.0"
+description = "An autonomous coding agent for the terminal"
+readme = "README.md"
+authors = [
+    { name = "yezhoufan2005", email = "176495279+yezhoufan2005@users.noreply.github.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "httpx==0.28.1",
+]
+
+license = "MIT"
+
+[project.scripts]
+cli-agent = "cli_agent.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.31,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy==1.18.2",
+    "pytest==8.4.2",
+    "pytest-timeout==2.4.0",
+    "ruff==0.14.3",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "BLE", "RUF"]
+ignore = ["S603", "S607", "S101", "RUF001", "RUF012"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "BLE"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 60
+addopts = "-q"
+norecursedirs = ["tests/e2e"]
