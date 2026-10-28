@@ -59,3 +59,13 @@ def test_json_ui_events() -> None:
     assert ui.approve(ToolUseBlock("t", "run_shell", {}), "$ x") == "no"
     events = [json.loads(line) for line in out.getvalue().splitlines()]
     assert [e["event"] for e in events] == ["text", "approval_denied"]
+
+
+def test_streamed_text_not_printed_twice() -> None:
+    out = io.StringIO()
+    ui = TerminalUI(interactive=False, out=out, err=io.StringIO())
+    ui.on_text_delta("Hel")
+    ui.on_text_delta("lo")
+    ui.on_text("Hello")
+    ui.on_text("again")
+    assert out.getvalue() == "Hello\nagain\n"

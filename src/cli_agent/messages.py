@@ -26,6 +26,9 @@ class ToolUseBlock:
     name: str
     input: dict[str, Any]
     type: Literal["tool_use"] = "tool_use"
+    complete: bool = field(default=True, compare=False)
+    """False when the arguments could not be parsed (e.g. cut off by max_tokens).
+    Not persisted: a resumed incomplete call has already received its error result."""
 
 
 @dataclass

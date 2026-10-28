@@ -8,7 +8,7 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | B-SLICE | P0 | done | Vertical slice: loop, 6 tools, permissions, sessions, CLI, Anthropic adapter | `check.sh` green; e2e 3/3 (2026-10-28) |
 | B-CI | P0 | done | CI green on GitHub for the matrix; protect `main` (require `check` + `build`) | Green run on `main`; ruleset active |
 | B-REVIEW | P0 | done | Independent security review of permissions, path confinement, shell, config trust | Findings fixed or filed as issues (2026-10-28, see progress) |
-| B-STREAM | P0 | todo | Stream model output (SSE) so text appears as it is generated; Ctrl-C mid-stream cancels cleanly | Contract test with recorded SSE; manual REPL check |
+| B-STREAM | P0 | done | Stream model output (SSE) so text appears as it is generated; Ctrl-C mid-stream cancels cleanly | Contract test with recorded SSE; manual REPL check |
 | B-CLAUDE | P0 | done | Root `CLAUDE.md` for contributors/agents | File exists, < 60 lines |
 | B-RELEASE | P0 | todo | Release workflow: tag `v*` → build wheel/sdist, GitHub Release with notes; CHANGELOG | Dry-run release on a tag; install from release asset works |
 | B-GIT-SAFETY | P1 | todo | Warn at start when workspace is not a git repo or has uncommitted changes in write modes | CLI test |

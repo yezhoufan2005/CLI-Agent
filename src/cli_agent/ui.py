@@ -55,9 +55,30 @@ class TerminalUI:
         self._red = "\x1b[31m" if color else ""
         self._yellow = "\x1b[33m" if color else ""
         self._reset = "\x1b[0m" if color else ""
+        self._streamed = False
+        self._at_line_start = True
+
+    streams = True
+
+    def on_text_delta(self, text: str) -> None:
+        self._streamed = True
+        self._at_line_start = text.endswith("\n")
+        self.out.write(escape_controls(text))
+        self.out.flush()
 
     def on_text(self, text: str) -> None:
-        print(text, file=self.out, flush=True)
+        if self._streamed:
+            self._end_line()
+            self._streamed = False
+        else:
+            print(escape_controls(text), file=self.out, flush=True)
+
+    def _end_line(self) -> None:
+        """Finish a partially streamed line before printing anything else."""
+        if not self._at_line_start:
+            self.out.write("\n")
+            self.out.flush()
+            self._at_line_start = True
 
     def on_tool_start(self, call: ToolUseBlock, summary: str) -> None:
         line = escape_controls(summary, keep_newlines=False)
@@ -74,6 +95,7 @@ class TerminalUI:
             )
 
     def on_notice(self, message: str) -> None:
+        self._end_line()
         line = escape_controls(message, keep_newlines=False)
         print(f"{self._yellow}! {line}{self._reset}", file=self.err, flush=True)
 
@@ -125,6 +147,11 @@ class JsonUI:
     def emit(self, event: str, **data: Any) -> None:
         self.out.write(json.dumps({"event": event, **data}, ensure_ascii=False) + "\n")
         self.out.flush()
+
+    streams = False
+
+    def on_text_delta(self, text: str) -> None:
+        pass
 
     def on_text(self, text: str) -> None:
         self.emit("text", text=text)

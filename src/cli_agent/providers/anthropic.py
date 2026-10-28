@@ -1,7 +1,9 @@
-"""Anthropic Messages API adapter (non-streaming)."""
+"""Anthropic Messages API adapter (streaming via SSE, or a single JSON response)."""
 
 from __future__ import annotations
 
+import json
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import httpx
@@ -30,6 +32,7 @@ _STOP_MAP: dict[str, StopReason] = {
     "tool_use": "tool_use",
     "max_tokens": "max_tokens",
     "refusal": "refusal",
+    "model_context_window_exceeded": "max_tokens",
 }
 
 
@@ -93,28 +96,125 @@ class AnthropicProvider:
         return body
 
     def complete(
-        self, *, system: str, messages: list[Message], tools: list[ToolSpec], max_tokens: int
+        self,
+        *,
+        system: str,
+        messages: list[Message],
+        tools: list[ToolSpec],
+        max_tokens: int,
+        on_text: Callable[[str], None] | None = None,
     ) -> Completion:
+        """Call the model. With `on_text`, stream and report text as it arrives."""
         body = self.build_request(
             system=system, messages=messages, tools=tools, max_tokens=max_tokens
         )
+        if on_text is not None:
+            body["stream"] = True
         try:
-            resp = self._client.post("/v1/messages", json=body)
+            with self._client.stream("POST", "/v1/messages", json=body) as resp:
+                if resp.status_code != 200:
+                    resp.read()
+                    raise ProviderError(
+                        f"HTTP {resp.status_code}: {_error_detail(resp)}",
+                        retryable=resp.status_code in RETRYABLE_STATUS,
+                        retry_after=parse_retry_after(resp.headers.get("retry-after")),
+                    )
+                if on_text is None:
+                    resp.read()
+                    try:
+                        data = resp.json()
+                    except ValueError as err:
+                        raise ProviderError("response was not valid JSON", retryable=True) from err
+                    return parse_response(data)
+                return parse_response(accumulate_stream(_sse_events(resp.iter_lines()), on_text))
         except httpx.TimeoutException as err:
             raise ProviderError(f"request timed out: {err}", retryable=True) from err
         except httpx.TransportError as err:
             raise ProviderError(f"network error: {err}", retryable=True) from err
-        if resp.status_code != 200:
+
+
+def _sse_events(lines: Iterator[str]) -> Iterator[dict[str, Any]]:
+    """Yield the JSON payload of each server-sent event."""
+    data: list[str] = []
+    for line in lines:
+        if line == "":
+            if data:
+                yield _decode_event("\n".join(data))
+                data = []
+        elif line.startswith("data:"):
+            data.append(line[5:].lstrip(" "))
+        # "event:", "id:", "retry:" and ":" comment lines carry nothing we need;
+        # every data payload repeats its type.
+    if data:
+        yield _decode_event("\n".join(data))
+
+
+def _decode_event(raw: str) -> dict[str, Any]:
+    try:
+        event = json.loads(raw)
+    except json.JSONDecodeError as err:
+        raise ProviderError(f"malformed stream event: {raw[:200]!r}", retryable=True) from err
+    if not isinstance(event, dict):
+        raise ProviderError(f"malformed stream event: {raw[:200]!r}", retryable=True)
+    return event
+
+
+def accumulate_stream(
+    events: Iterator[dict[str, Any]], on_text: Callable[[str], None]
+) -> dict[str, Any]:
+    """Rebuild a non-streaming response body from Messages API stream events."""
+    message: dict[str, Any] = {}
+    blocks: dict[int, dict[str, Any]] = {}
+    partial_json: dict[int, list[str]] = {}
+    done = False
+    for event in events:
+        kind = event.get("type")
+        if kind == "message_start":
+            message = dict(event.get("message") or {})
+        elif kind == "content_block_start":
+            index = int(event.get("index", len(blocks)))
+            blocks[index] = dict(event.get("content_block") or {})
+            if blocks[index].get("type") == "tool_use":
+                partial_json[index] = []
+        elif kind == "content_block_delta":
+            index = int(event.get("index", 0))
+            delta = event.get("delta") or {}
+            block = blocks.setdefault(index, {"type": "text", "text": ""})
+            if delta.get("type") == "text_delta":
+                text = str(delta.get("text", ""))
+                block["text"] = block.get("text", "") + text
+                if text:
+                    on_text(text)
+            elif delta.get("type") == "input_json_delta":
+                partial_json.setdefault(index, []).append(str(delta.get("partial_json", "")))
+        elif kind == "message_delta":
+            delta = event.get("delta") or {}
+            if "stop_reason" in delta:
+                message["stop_reason"] = delta["stop_reason"]
+            usage = dict(message.get("usage") or {})
+            usage.update(event.get("usage") or {})
+            message["usage"] = usage
+        elif kind == "message_stop":
+            done = True
+            break
+        elif kind == "error":
+            err = event.get("error") or {}
             raise ProviderError(
-                f"HTTP {resp.status_code}: {_error_detail(resp)}",
-                retryable=resp.status_code in RETRYABLE_STATUS,
-                retry_after=parse_retry_after(resp.headers.get("retry-after")),
+                f"stream error: {err.get('type', 'error')}: {err.get('message', 'unknown')}",
+                retryable=err.get("type") in ("overloaded_error", "api_error", "rate_limit_error"),
             )
+        # "ping" and unknown event types are ignored, as the API docs require.
+    if not done:
+        raise ProviderError("stream ended before message_stop", retryable=True)
+    for index, parts in partial_json.items():
+        raw = "".join(parts)
         try:
-            data = resp.json()
-        except ValueError as err:
-            raise ProviderError("response was not valid JSON", retryable=True) from err
-        return parse_response(data)
+            parsed = json.loads(raw) if raw.strip() else {}
+        except json.JSONDecodeError:
+            parsed = None  # typically cut off by max_tokens; the agent reports it
+        blocks[index]["input"] = parsed
+    message["content"] = [blocks[i] for i in sorted(blocks)]
+    return message
 
 
 def _error_detail(resp: httpx.Response) -> str:
@@ -147,6 +247,7 @@ def parse_response(data: dict[str, Any]) -> Completion:
                     id=str(raw["id"]),
                     name=str(raw["name"]),
                     input=tool_input if isinstance(tool_input, dict) else {},
+                    complete=isinstance(tool_input, dict),
                 )
             )
         # Other block types (thinking, server tools) are ignored in this version.

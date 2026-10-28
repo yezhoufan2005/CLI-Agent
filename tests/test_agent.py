@@ -236,3 +236,17 @@ def test_empty_response_does_not_corrupt_history(tmp_path: Path, bad: list) -> N
     session = new_session(tmp_path)
     agent.run(session, "go")
     assert session.messages[-1].role == "assistant" and session.messages[-1].content
+
+
+def test_incomplete_tool_call_not_executed(tmp_path: Path) -> None:
+    script = [
+        {
+            "tool_calls": [{"name": "write_file", "input": {}, "complete": False}],
+            "stop_reason": "max_tokens",
+        },
+        {"text": "ok"},
+    ]
+    agent, provider = make_agent(tmp_path, script)
+    assert agent.run(new_session(tmp_path), "go").status == "done"
+    res = provider.requests[1].messages[-1].content[0]
+    assert isinstance(res, ToolResultBlock) and res.is_error and "cut off" in res.content

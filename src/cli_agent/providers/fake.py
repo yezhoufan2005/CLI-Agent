@@ -8,6 +8,7 @@ exception instance to raise. Every request the agent makes is recorded.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -40,7 +41,13 @@ class FakeProvider:
         return cls(script=data)
 
     def complete(
-        self, *, system: str, messages: list[Message], tools: list[ToolSpec], max_tokens: int
+        self,
+        *,
+        system: str,
+        messages: list[Message],
+        tools: list[ToolSpec],
+        max_tokens: int,
+        on_text: Callable[[str], None] | None = None,
     ) -> Completion:
         self.requests.append(RecordedRequest(system, list(messages), list(tools), max_tokens))
         if not self.script:
@@ -51,6 +58,8 @@ class FakeProvider:
         blocks: list[TextBlock | ToolUseBlock] = []
         if turn.get("text"):
             blocks.append(TextBlock(text=turn["text"]))
+            if on_text is not None:
+                on_text(turn["text"])
         for call in turn.get("tool_calls", []):
             self._counter += 1
             blocks.append(
@@ -58,6 +67,7 @@ class FakeProvider:
                     id=call.get("id", f"toolu_fake_{self._counter}"),
                     name=call["name"],
                     input=call.get("input", {}),
+                    complete=call.get("complete", True),
                 )
             )
         stop: StopReason = turn.get("stop_reason") or (

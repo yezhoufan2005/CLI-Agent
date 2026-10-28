@@ -22,7 +22,14 @@ ELIDED = "[older tool output elided to save context]"
 
 
 class UI(Protocol):
-    def on_text(self, text: str) -> None: ...
+    streams: bool
+    """True if the UI wants text deltas via on_text_delta while the model writes."""
+
+    def on_text_delta(self, text: str) -> None: ...
+    def on_text(self, text: str) -> None:
+        """Called once per assistant message with its full text."""
+        ...
+
     def on_tool_start(self, call: ToolUseBlock, summary: str) -> None: ...
     def on_tool_end(self, call: ToolUseBlock, result: ToolResult) -> None: ...
     def on_notice(self, message: str) -> None: ...
@@ -102,12 +109,15 @@ class Agent:
     def _complete(self, session: Session):  # type: ignore[no-untyped-def]
         specs = [spec_of(t) for t in self.tools]
 
+        on_text = self.ui.on_text_delta if getattr(self.ui, "streams", False) else None
+
         def call():  # type: ignore[no-untyped-def]
             return self.provider.complete(
                 system=self.system,
                 messages=session.messages,
                 tools=specs,
                 max_tokens=self.max_tokens,
+                on_text=on_text,
             )
 
         def on_retry(attempt: int, err: ProviderError, wait: float) -> None:
@@ -123,6 +133,14 @@ class Agent:
         if tool is None:
             known = ", ".join(sorted(self._by_name))
             return ToolResultBlock(call.id, f"unknown tool {call.name!r}; available: {known}", True)
+        if not call.complete:
+            return ToolResultBlock(
+                call.id,
+                "the tool arguments were cut off (the response hit the output token limit) and "
+                "could not be parsed; nothing was run. Retry with smaller input, e.g. write a "
+                "large file in several edits.",
+                True,
+            )
         try:
             summary = tool.summarize(call.input)
         except Exception:  # noqa: BLE001 - summaries must never break the loop
