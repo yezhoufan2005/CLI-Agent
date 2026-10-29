@@ -2,6 +2,13 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Exercism rerun on the 0.4.0+ prompt
+
+- Cross-check that the prompt changes (#53, #57) were not tuned to sympy only: Exercism Python, same 30 exercises (seed 7, exercism/python `6105f6d`), main at the file-tools rule.
+  - claude-sonnet-4-6: 28/30 (0.2.0: 27/30). Failed: house, pov.
+  - claude-haiku-4-5: 26/30 (0.2.0: 27/30). Failed: dot-dsl, house, pov, robot-simulator.
+- Both are within ±1 of the 0.2.0 numbers, i.e. no measurable change on a second benchmark. Reports: `docs/bench/exercism-seed7-*-v2.json`.
+
 ## 2026-10-29 — Headless approvals explain allow-rule misses (PR #59)
 
 - Found by a fresh-user check of the 0.4.0 wheel (`uv tool install` from the release, `doctor`, one-shot fix in a scratch git repo with `--mode auto-edit --allow 'run_shell:python*' --allow 'run_shell:pytest*'`, stdin not a tty). The model ran `python -m pytest -q 2>&1 | tail -30`. Shell allow rules deliberately never match command lines with operators, so it needed approval. Nobody could approve, the model was told "the user declined", and it finished without running the tests (3/3 runs on 0.4.0).
