@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import select
 import sys
 from typing import IO, Any
 
@@ -23,6 +24,25 @@ _CONTROL = re.compile(
     r"[\x00-\x08\x0b-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff"
     r"\ud800-\udfff]"
 )
+
+
+def discard_typeahead(inp: IO[str]) -> bool:
+    """Drop input typed before a question was shown; True if there was any.
+
+    Otherwise a line typed ahead while the agent worked (`y`, or just Enter)
+    would answer an approval prompt the user has not seen yet.
+    """
+    try:
+        if not inp.isatty():
+            return False
+        import termios
+
+        fd = inp.fileno()
+        pending = bool(select.select([fd], [], [], 0)[0])
+        termios.tcflush(fd, termios.TCIFLUSH)
+        return pending
+    except (OSError, ValueError, ImportError, AttributeError):
+        return False
 
 
 def escape_controls(text: str, *, keep_newlines: bool = True) -> str:
@@ -154,6 +174,11 @@ class TerminalUI:
             return "no"
         print(f"{self._yellow}? approve: {line}{self._reset}", file=self.err)
         self._show_call(call, full=False)
+        if discard_typeahead(self.inp):
+            print(
+                f"{self._dim}  (ignored input typed before this question){self._reset}",
+                file=self.err,
+            )
         while True:
             print(
                 "  [y]es / [n]o / [a]lways for this session / [v]iew full: ",

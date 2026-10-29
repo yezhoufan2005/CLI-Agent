@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Security
+- Input typed before an approval question appears (for example while a command runs) is discarded, so a typed-ahead `y` or Enter can no longer answer a question the user has not seen.
+
 ## 0.4.0 — 2026-10-29
 
 ### Added

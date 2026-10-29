@@ -2,6 +2,11 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — 0.4.0 released; approval typeahead (PR #56)
+
+- https://github.com/yezhoufan2005/CLI-Agent/releases/tag/v0.4.0 was built by the release workflow from 8eb6eae after `main` CI passed. Verified: downloaded the assets, `sha256sum -c` ok, clean-venv install reports `cli-agent 0.4.0`.
+- PR #56 (from the fifth review's unverified suspicion): approval prompts now flush terminal input typed before the question was shown and say so. Before, a `y` typed while a command ran approved the next command unseen. CI: `test_input_typed_ahead_does_not_answer_an_approval` fails without the fix.
+
 ## 2026-10-29 — Release 0.4.0 gate evidence
 
 | Gate | Evidence |
