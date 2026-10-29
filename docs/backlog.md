@@ -18,9 +18,9 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | B-LOG | P1 | done | `--debug` log file with request timing, retries, tool durations (no secrets, no content by default) | Test that log has no secret values |
 | B-SANDBOX | P1 | done | Optional bubblewrap sandbox for `run_shell` (read-only root, writable workspace, no network option) | Tests on a host with userns (CI ubuntu?) ; skip with clear message otherwise |
 | B-USAGE | P2 | done | Print token usage / estimated cost summary at end of run | CLI test |
-| B-COMPACT | P2 | todo | Summarization compaction when elision is not enough | Long-session e2e |
+| B-COMPACT | P2 | todo | Summarization compaction when elision is not enough | Long-session e2e. No evidence of need yet: `long-context` and every SWE-bench run fit with elision alone |
 | B-MCP | P2 | done | MCP client for external tools (stdio) | Contract test with a toy server |
-| B-PARALLEL | P2 | todo | Run independent read-only tool calls concurrently | Agent test |
+| B-PARALLEL | P2 | dropped | Run independent read-only tool calls concurrently | Dropped 2026-10-29: measured in a real E2E run (multi-file-rename), the 9 tool calls took 0.10 s in total against 9.7 s of model time, so concurrency would save under 1% and add risk to approval ordering |
 | B-PROC-LIMITS | P1 | done | Kill processes that escape the shell's process group (setsid/nohup) at timeout; cap the on-disk output spool | Test: `setsid sleep` child is gone after timeout; spool ≤ limit |
 | B-REGEX-TIMEOUT | P2 | done | Bound search_files time for pathological regexes (subprocess or deadline) | Test with `(a+)+$` on a long line returns within N s |
 | B-E2E-HARD | P1 | done | Harder E2E tasks (symptom-only bug with hidden edge cases, spec-to-implementation with hidden tests, argparse refactor with golden output) | Added 3 tasks; 10/10 pass on haiku-4-5 and sonnet-4-6, so the suite still does not discriminate; next step is B-BENCH |
