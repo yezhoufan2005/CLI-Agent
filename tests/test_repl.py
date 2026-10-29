@@ -212,3 +212,23 @@ def test_ctrl_d_right_after_a_prompt_runs_it_then_exits(tmp_path: Path) -> None:
     os.write(t.master, b"hello\n\x04")
     t.expect("answered")
     assert t.close() == 0
+
+
+def test_input_typed_ahead_does_not_answer_an_approval(tmp_path: Path) -> None:
+    script = [
+        {"tool_calls": [{"name": "run_shell", "input": {"command": "sleep 2"}}]},
+        {"tool_calls": [{"name": "run_shell", "input": {"command": "touch unseen"}}]},
+        {"text": "finished"},
+    ]
+    t = Term(tmp_path, script, "--allow", "run_shell:sleep 2")
+    t.expect("Type /exit")
+    t.send("go")
+    t.expect("sleep 2")
+    t.send("y")  # typed while the first command runs, before the question exists
+    t.expect("[y]es")
+    t.expect("ignored input typed before")
+    t.send("n")
+    t.expect("finished")
+    t.send("/exit")
+    assert t.close() == 0
+    assert not (tmp_path / "work/unseen").exists()
