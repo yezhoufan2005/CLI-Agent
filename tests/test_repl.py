@@ -68,6 +68,23 @@ class Term:
     def send(self, line: str) -> None:
         os.write(self.master, (line + "\n").encode())
 
+    def send_eof(self) -> None:
+        # readline prints the prompt before it takes the tty out of canonical mode; a
+        # Ctrl-D typed in that window reaches readline as a NUL and is ignored. So
+        # repeat it until the process exits (close() reports a REPL that never does).
+        for _ in range(20):
+            os.write(self.master, b"\x04")
+            deadline = time.monotonic() + 0.5
+            while time.monotonic() < deadline:
+                if self.proc.poll() is not None:
+                    return
+                ready, _, _ = select.select([self.master], [], [], 0.05)
+                if ready:
+                    try:
+                        self.buf += os.read(self.master, 4096).decode("utf-8", "replace")
+                    except OSError:
+                        pass
+
     def close(self) -> int:
         # Keep draining output while waiting: macOS ptys have small buffers, and a
         # child blocked writing to a full pty never exits.
@@ -126,7 +143,7 @@ def test_repl_decline_and_mode_switch(tmp_path: Path) -> None:
     t.expect("mode is now auto-edit")
     t.send("write y")
     t.expect("done")
-    os.write(t.master, b"\x04")  # Ctrl-D exits
+    t.send_eof()  # Ctrl-D exits
     assert t.close() == 0
     assert not (tmp_path / "work/nope").exists()
     assert (tmp_path / "work/y.txt").read_text() == "y"
