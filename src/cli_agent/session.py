@@ -3,6 +3,7 @@ after every turn so a killed process loses at most the in-flight turn."""
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import secrets
@@ -11,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from cli_agent import log
 from cli_agent.messages import (
     Message,
     TextBlock,
@@ -106,9 +108,50 @@ class Session:
             self.title = " ".join(text.split())[:80]
 
 
+class SessionBusy(ValueError):
+    """Another process has the session open; both saving would lose one's turns."""
+
+
 class SessionStore:
     def __init__(self, directory: Path | None = None):
         self.dir = (directory or default_state_dir()) / "sessions"
+        self._locks: dict[str, int] = {}
+
+    def claim(self, session_id: str) -> None:
+        """Hold the session's lock until `release` or process exit.
+
+        Every save rewrites the whole history, so two processes on one session
+        would silently drop each other's turns. The lock is a separate file
+        because `save` replaces the session file (and with it any lock on it).
+        """
+        if session_id in self._locks:
+            return
+        lock = self.path(session_id).with_suffix(".lock")
+        try:
+            self.dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+            fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        except OSError as err:
+            # A safety net, not a precondition: work goes on without it.
+            log.event("session_lock_error", error=str(err)[:300])
+            return
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(fd)
+            raise SessionBusy(
+                f"session {session_id} is open in another cli-agent process; "
+                "finish it there, or start a new session"
+            ) from None
+        except OSError as err:  # e.g. no flock support on this filesystem
+            os.close(fd)
+            log.event("session_lock_error", error=str(err)[:300])
+            return
+        self._locks[session_id] = fd
+
+    def release(self, session_id: str) -> None:
+        fd = self._locks.pop(session_id, None)
+        if fd is not None:
+            os.close(fd)  # drops the flock
 
     def path(self, session_id: str) -> Path:
         if (

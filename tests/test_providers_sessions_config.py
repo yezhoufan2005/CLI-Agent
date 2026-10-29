@@ -242,3 +242,16 @@ def test_session_file_naming_another_id_is_refused(tmp_path: Path) -> None:
     (store.dir / "aaaaaa.json").write_text((store.dir / "bbbbbb.json").read_text())
     with pytest.raises(ValueError, match="different session id"):
         store.load("aaaaaa")
+
+
+def test_session_claim_excludes_other_holders(tmp_path: Path) -> None:
+    from cli_agent.session import SessionBusy
+
+    mine, other = SessionStore(tmp_path), SessionStore(tmp_path)
+    mine.claim("abc")
+    mine.claim("abc")  # already held here: no-op
+    with pytest.raises(SessionBusy, match="open in another cli-agent process"):
+        other.claim("abc")
+    other.claim("abd")  # other sessions are unaffected
+    mine.release("abc")
+    other.claim("abc")

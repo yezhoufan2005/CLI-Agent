@@ -288,6 +288,27 @@ def test_sessions_list_and_resume_inside_the_repl(tmp_path: Path) -> None:
     assert len(list((tmp_path / "state/cli-agent/sessions").glob("*.json"))) == 1
 
 
+def test_resume_refuses_a_session_open_in_another_process(tmp_path: Path) -> None:
+    t = Term(tmp_path, [{"text": "first reply"}])
+    t.expect("Type /exit")
+    t.send("first session prompt")
+    t.expect("first reply")
+    (first,) = (tmp_path / "state/cli-agent/sessions").glob("*.json")
+    # The first REPL is still running, so a second one must not take its session.
+    t2 = Term(tmp_path, [{"text": "second reply"}])
+    t2.expect("Type /exit")
+    t2.send(f"/resume {first.stem}")
+    t2.expect("open in another cli-agent process")
+    t2.send("hello")
+    t2.expect("second reply")
+    t2.send("/exit")
+    assert t2.close() == 0
+    t.send("/exit")
+    assert t.close() == 0
+    texts = [m["content"][0].get("text") for m in json.loads(first.read_text())["messages"]]
+    assert texts == ["first session prompt", "first reply"]
+
+
 def test_partly_typed_answer_does_not_carry_into_the_approval(tmp_path: Path) -> None:
     script = [
         {"tool_calls": [{"name": "run_shell", "input": {"command": "sleep 2"}}]},
