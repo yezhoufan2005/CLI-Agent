@@ -175,9 +175,12 @@ class SessionStore:
         sessions = []
         for p in self.dir.glob("*.json"):
             try:
-                sessions.append(Session.from_dict(json.loads(p.read_text(encoding="utf-8"))))
-            except (OSError, ValueError, KeyError, TypeError):
+                session = Session.from_dict(json.loads(p.read_text(encoding="utf-8")))
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
                 continue
+            # A copied file naming another id would overwrite that session on save.
+            if session.id == p.stem:
+                sessions.append(session)
         return sorted(sessions, key=lambda s: s.updated, reverse=True)
 
     def latest_for(self, cwd: str) -> Session | None:

@@ -5,6 +5,8 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 ## Unreleased
 
 ### Fixed (eighth review)
+- `--continue`, `sessions` and `/sessions` ignore a session file whose stored id differs from its file name (it was listed twice and `--continue` could overwrite the other session).
+- Empty checkpoints no longer count toward the 20-prompt undo limit, so a just-started prompt can't push out a file change; a typed-ahead loosening `/mode` is never applied, even as the first typed-ahead line.
 - A `/mode` line inside input typed ahead during an approval question is applied before that input runs if it tightens the mode (e.g. `/mode read-only`); a loosening `/mode` from typed-ahead input is not applied and the user is told to retype it.
 - An `undo` that fails part-way keeps the files it could not revert, says which ones it did, and a retry finishes the same prompt.
 - `--resume` and `/resume` refuse a session file whose stored id differs from its file name, which would have overwritten the other session.

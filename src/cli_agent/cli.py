@@ -563,8 +563,6 @@ def _apply_typeahead_modes(queued: list[str], policy: PermissionPolicy) -> None:
     covers the prompt typed with it. A looser mode is not applied from text the
     user has not seen again (it may come from a paste); they can retype it.
     """
-    if not queued or queued[0].lstrip().startswith("/"):
-        return  # a leading command is run normally, on its own
     keep = []
     for line in queued:
         words = line.split()
