@@ -4,6 +4,8 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+## 0.4.0 — 2026-10-29
+
 ### Added
 - `--resume` accepts a unique prefix of a session id.
 - REPL: a multi-line paste is sent as one prompt instead of one prompt per line. A line starting with `/` is always handled on its own, so a command typed while the agent is busy still applies.
@@ -14,6 +16,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 ### Fixed
 - `--resume` matches the prefix literally (`*`, `?`, `[` are not glob patterns), rejects an empty or over-long id, and reports a non-session or unreadable file as an error instead of a traceback. `--resume` and `--continue` are mutually exclusive.
 - REPL: Ctrl-D typed right after a prompt runs that prompt and then exits, instead of being swallowed.
+
+### Notes
+- SWE-bench Lite, sympy subset (Docker-free harness, two samples of 20): with the new system prompt claude-sonnet-4-6 resolved 15/20 (seed 1) and 14/20 (seed 2), claude-haiku-4-5 16/20 and 14/20, i.e. 29/40 and 30/40 (0.3.0+: 27/40 and 28/40). Single runs; the differences are within run-to-run noise. Not official SWE-bench numbers.
 
 ## 0.3.0 — 2026-10-29
 

@@ -2,6 +2,19 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Release 0.4.0 gate evidence
+
+| Gate | Evidence |
+|---|---|
+| 1. CI green | `main` at 2f19052: all jobs green. The release workflow re-runs the gate on the tag |
+| 2. ACs | No new ACs. New behaviour (paste joining, typed-ahead commands, Ctrl-D, `--resume` edge cases) is covered by CI tests in `test_repl.py` and `test_cli.py` |
+| 3. E2E | `scripts/e2e.sh claude-sonnet-4-6` at 2f19052 (the release commit differs only in version strings, changelog and docs): `pass=11 fail=0` |
+| 4. No open `severity:high` | None open; only #17 (optional PyPI, needs-human) |
+| 5. Independent review | Fifth review covered all code since 0.3.0; all 5 findings fixed (#54) |
+| 6. Wheel installs | Release workflow smoke test, then a manual install from the release asset (recorded after tagging) |
+
+Haiku with the new prompt (PR #53): seed 1 16/20 (was 15/20 v2), seed 2 14/20 (was 13/20). Combined with sonnet: sonnet 29/40, haiku 30/40, up from 27/40 and 28/40. Each model and seed moved by +1; still within noise, but all four moved the same way. Reports: `docs/bench/swebench-lite-sympy-seed{1-*-v3,2-*-v2}.json`.
+
 ## 2026-10-29 — Fifth independent review: fixes (PR #54)
 
 A reviewer agent checked v0.3.0..main (prefix `--resume`, REPL paste joining, prompt text) and reproduced 5 findings (scripts in /tmp/review5, not kept). Status:
