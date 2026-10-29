@@ -73,12 +73,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="model API: anthropic (default) or openai (any OpenAI-compatible endpoint)",
     )
     p.add_argument("-C", "--cwd", type=Path, help="workspace root (default: current directory)")
-    p.add_argument(
+    which = p.add_mutually_exclusive_group()
+    which.add_argument(
         "--resume",
         metavar="ID",
         help="resume a saved session (a unique prefix of the id is enough)",
     )
-    p.add_argument(
+    which.add_argument(
         "-c",
         "--continue",
         dest="cont",
@@ -455,7 +456,7 @@ def _run(
 def _open_session(
     store: SessionStore, args: argparse.Namespace, root: Path, cfg: Config
 ) -> Session:
-    if args.resume:
+    if args.resume is not None:
         session = store.load(store.resolve_id(args.resume))
     elif args.cont:
         found = store.latest_for(str(root))
@@ -508,16 +509,22 @@ def _input_pending() -> bool:
     return bool(ready)
 
 
-def _read_prompt() -> str:
+def _read_prompt() -> tuple[str, bool]:
+    """Read one prompt; return it and whether stdin hit EOF right after it."""
+    first = input("› ")
+    # Lines typed ahead while the agent was busy are waiting too; a command must
+    # stay on its own so that e.g. `/mode read-only` still applies.
+    if first.lstrip().startswith("/"):
+        return first.strip(), False
     # A multi-line paste arrives all at once. Join the lines that are already
     # waiting, so it becomes one prompt instead of one model run per line.
-    lines = [input("› ")]
+    lines = [first]
     while _input_pending():
         try:
             lines.append(input(""))
         except EOFError:
-            break
-    return "\n".join(lines).strip()
+            return "\n".join(lines).strip(), True
+    return "\n".join(lines).strip(), False
 
 
 def _repl(agent: Agent, session: Session, ui: TerminalUI | JsonUI) -> int:
@@ -530,9 +537,13 @@ def _repl(agent: Agent, session: Session, ui: TerminalUI | JsonUI) -> int:
         "Type /exit to quit, /help for commands.",
         file=sys.stderr,
     )
+    eof = False
     while True:
+        if eof:
+            print(file=sys.stderr)
+            return EXIT_OK
         try:
-            line = _read_prompt()
+            line, eof = _read_prompt()
         except EOFError:
             print(file=sys.stderr)
             return EXIT_OK

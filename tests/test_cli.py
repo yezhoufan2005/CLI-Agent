@@ -328,3 +328,26 @@ def test_resume_by_unique_prefix(tmp_path: Path) -> None:
     assert r3.returncode == 2 and "ambiguous" in r3.stderr
     r4 = run_cli(tmp_path, [{"text": "x"}], "--resume", "zzz", "--json", "four")
     assert r4.returncode == 2 and "no session" in r4.stderr
+
+
+def test_resume_rejects_bad_ids_and_files_cleanly(tmp_path: Path) -> None:
+    r1 = run_cli(tmp_path, [{"text": "first"}], "--json", "one")
+    assert r1.returncode == 0, r1.stderr
+    sessions = tmp_path / "state/cli-agent/sessions"
+    (sessions / "notasession.json").write_text("[]")
+    (sessions / "dir.json").mkdir()
+    cases = {
+        "*": "no session",  # a glob character matches literally, not as a pattern
+        "**": "no session",
+        "?": "no session",
+        "": "invalid session id",
+        "x" * 300: "invalid session id",
+        "notasession": "not a valid session",
+        "dir": "not a valid session",
+    }
+    for arg, message in cases.items():
+        r = run_cli(tmp_path, [{"text": "x"}], "--resume", arg, "--json", "go")
+        assert r.returncode == 2, (arg, r.stderr)
+        assert message in r.stderr and "Traceback" not in r.stderr, (arg, r.stderr)
+    r = run_cli(tmp_path, [{"text": "x"}], "--resume", "2", "--continue", "go")
+    assert r.returncode == 2 and "not allowed with" in r.stderr
