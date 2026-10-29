@@ -240,6 +240,8 @@ class EditFile:
                 raise ToolError(f"old_string not found in {display_path(ctx.root, path)}{hint}")
             # Exactly one place matches once whitespace differences are ignored.
             updated, line = fuzzy
+            if updated == text:
+                raise ToolError("the edit would not change the file (only whitespace differs)")
             before_bytes = path.read_bytes()
             _atomic_write(path, updated)
             if ctx.checkpoints is not None:
@@ -273,6 +275,10 @@ def _indent(line: str) -> str:
     return line[: len(line) - len(line.lstrip(" \t"))]
 
 
+# Characters a whitespace-insensitive comparison could silently drop or move.
+_ODD_SEPARATORS = re.compile("[\r\x0b\x0c\x1c-\x1e\x85\u2028\u2029]")
+
+
 def fuzzy_replace(text: str, old: str, new: str) -> tuple[str, int] | None:
     """Replace `old` when it matches exactly one run of whole lines except for
     whitespace: trailing spaces, CRLF vs LF, or a uniform extra indentation.
@@ -286,11 +292,22 @@ def fuzzy_replace(text: str, old: str, new: str) -> tuple[str, int] | None:
     old_lines = [line.rstrip("\r") for line in old_lines]
     if not any(line.strip() for line in old_lines):
         return None
-    file_lines = text.splitlines(keepends=True)
+    # Split on "\n" only: str.splitlines also breaks on form feeds and other
+    # separators, and rejoining would silently rewrite them.
+    parts = text.split("\n")
+    file_lines = [p + "\n" for p in parts[:-1]] + ([parts[-1]] if parts[-1] else [])
+    bare = [w.removesuffix("\n").removesuffix("\r") for w in file_lines]
+    stripped = [w.strip() for w in bare]
     n = len(old_lines)
+    first = next(k for k, line in enumerate(old_lines) if line.strip())
+    anchor = old_lines[first].strip()
     matches: list[tuple[int, str]] = []
     for i in range(len(file_lines) - n + 1):
-        window = [w.rstrip("\r\n") for w in file_lines[i : i + n]]
+        if stripped[i + first] != anchor:
+            continue
+        window = bare[i : i + n]
+        if any(_ODD_SEPARATORS.search(w) for w in window):
+            continue
         prefix = _uniform_prefix(window, old_lines)
         if prefix is not None:
             matches.append((i, prefix))

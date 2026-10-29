@@ -157,7 +157,7 @@ def test_keepalive_only_stream_hits_deadline() -> None:
 
     from cli_agent.providers.base import with_deadline
 
-    with pytest.raises(ProviderError, match="did not finish") as info:
+    with pytest.raises(ProviderError, match="no content") as info:
         for _ in with_deadline(itertools.repeat(": keepalive"), seconds=0.05):
             pass
     assert info.value.retryable
