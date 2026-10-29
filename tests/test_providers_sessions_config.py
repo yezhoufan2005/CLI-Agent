@@ -255,3 +255,49 @@ def test_session_claim_excludes_other_holders(tmp_path: Path) -> None:
     other.claim("abd")  # other sessions are unaffected
     mine.release("abc")
     other.claim("abc")
+
+
+def test_session_lock_works_with_a_read_only_lock_file(tmp_path: Path) -> None:
+    from cli_agent.session import SessionBusy
+
+    mine = SessionStore(tmp_path)
+    assert mine.claim("abc") == ""
+    (tmp_path / "sessions" / "abc.lock").chmod(0o400)  # e.g. restored from a backup
+    with pytest.raises(SessionBusy):
+        SessionStore(tmp_path).claim("abc")
+    mine.release_all()
+    assert not list((tmp_path / "sessions").glob("*.lock"))  # released locks leave no file
+
+
+def test_session_claim_racing_a_release_locks_the_current_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import fcntl
+
+    from cli_agent import session as session_mod
+    from cli_agent.session import SessionBusy
+
+    holder, racer = SessionStore(tmp_path), SessionStore(tmp_path)
+    holder.claim("abc")
+    real_flock = fcntl.flock
+    calls = []
+
+    def flock(fd: int, op: int) -> None:
+        if not calls:  # the holder exits between the racer's open and its flock
+            holder.release("abc")
+        calls.append(op)
+        real_flock(fd, op)
+
+    monkeypatch.setattr(session_mod.fcntl, "flock", flock)
+    assert racer.claim("abc") == ""
+    assert len(calls) == 2  # the first lock was on the removed file; it retried
+    monkeypatch.setattr(session_mod.fcntl, "flock", real_flock)
+    with pytest.raises(SessionBusy):
+        SessionStore(tmp_path).claim("abc")
+
+
+def test_session_lock_problem_is_a_warning_not_an_error(tmp_path: Path) -> None:
+    (tmp_path / "sessions").mkdir()
+    (tmp_path / "sessions" / "abc.lock").mkdir()
+    warning = SessionStore(tmp_path).claim("abc")
+    assert "could not lock session abc" in warning

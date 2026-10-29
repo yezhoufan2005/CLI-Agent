@@ -387,7 +387,7 @@ def main(argv: list[str] | None = None) -> int:
     can_ask = stdin_tty and not args.json
 
     try:
-        session = _open_session(store, args, root, cfg)
+        session, lock_warning = _open_session(store, args, root, cfg)
     except (FileNotFoundError, ValueError) as err:
         _err(str(err))
         return EXIT_USAGE
@@ -410,6 +410,8 @@ def main(argv: list[str] | None = None) -> int:
     except SandboxUnavailable as err:
         _err(f"sandbox=required but {err}")
         return EXIT_USAGE
+    if lock_warning:
+        ui.on_notice(lock_warning)
     if sandbox_note:
         ui.on_notice(sandbox_note)
     if cfg.mode != "read-only":
@@ -511,7 +513,8 @@ def _run(
 
 def _open_session(
     store: SessionStore, args: argparse.Namespace, root: Path, cfg: Config
-) -> Session:
+) -> tuple[Session, str]:
+    """The session to run in, and a warning if it could not be locked."""
     if args.resume is not None:
         session_id = store.resolve_id(args.resume)
     elif args.cont:
@@ -521,15 +524,14 @@ def _open_session(
         session_id = found.id
     else:
         session = Session(id=new_session_id(), cwd=str(root), model=cfg.model)
-        store.claim(session.id)
-        return session
+        return session, store.claim(session.id)
     # Claim before loading, so a process that saves and exits just before cannot
     # have its last turn overwritten by a copy read earlier.
-    store.claim(session_id)
+    warning = store.claim(session_id)
     session = store.load(session_id)
     if session.cwd != str(root):
         raise ValueError(f"session {session.id} belongs to {session.cwd}; run it there or use -C")
-    return session
+    return session, warning
 
 
 def _finish(result: RunResult, session: Session, ui: TerminalUI | JsonUI) -> int:
@@ -708,7 +710,7 @@ def _repl(
             other_id = ""
             try:
                 other_id = store.resolve_id(parts[1])
-                store.claim(other_id)  # before loading; see _open_session
+                warning = store.claim(other_id)  # before loading; see _open_session
                 other = store.load(other_id)
                 if other.cwd != session.cwd:
                     raise ValueError(
@@ -719,6 +721,8 @@ def _repl(
                 if other_id and other_id != session.id:
                     store.release(other_id)
                 continue
+            if warning:
+                print(warning, file=sys.stderr)
             if other.id != session.id:
                 store.release(session.id)
             session = other

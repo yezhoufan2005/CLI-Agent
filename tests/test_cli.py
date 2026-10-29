@@ -488,3 +488,7 @@ def test_a_session_open_elsewhere_is_not_resumed(tmp_path: Path) -> None:
         os.close(fd)
     r = run_cli(tmp_path, [{"text": "second"}], "--resume", sid, "--json", "two")
     assert r.returncode == 0, r.stderr  # released with the holder's exit
+    # Exits after the claim but before the run: no provider credentials.
+    r = run_cli(tmp_path, [], "hi", extra_env={"CLI_AGENT_FAKE_SCRIPT": ""})
+    assert r.returncode == 2, r.stderr
+    assert not list((tmp_path / "state/cli-agent/sessions").glob("*.lock"))
