@@ -2,6 +2,17 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Release 0.3.0 gate evidence
+
+| Gate | Evidence |
+|---|---|
+| 1. CI green | `main` at 5abdb73: all 7 jobs green (ubuntu/macos × 3.11/3.13/3.14, plus build). The release workflow re-runs the gate |
+| 2. ACs | No new ACs. Behaviour changes are covered by CI tests (`test_review4.py`, fuzzy edit, continuation) |
+| 3. E2E on the release commit | `scripts/e2e.sh claude-sonnet-4-6` at 5abdb73: `pass=11 fail=0` |
+| 4. No open `severity:high` | Only #17 (optional PyPI) is open |
+| 5. Independent review | The fourth review covered all code since 0.2.0. All 9 findings are fixed (#42) |
+| 6. Wheel installs | Release workflow smoke test, then a manual install from the release asset |
+
 ## 2026-10-29 — Fourth independent review: fixes (PR #42)
 
 A reviewer agent checked the code changed since d94e5b6 and reproduced 9 findings. Status:

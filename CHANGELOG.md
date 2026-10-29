@@ -4,14 +4,19 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+## 0.3.0 — 2026-10-29
+
 ### Added
 - `edit_file` falls back to a whitespace-tolerant match (indentation offset, trailing spaces, CRLF) when the exact text is not found and exactly one place matches; ambiguous matches are still refused.
 - `cli-agent doctor` also checks bash, git, the state directory, shell-sandbox availability, and configured MCP server commands.
 
 ### Changed
 - A reply cut off at the output token limit with no tool call no longer ends the run: the agent asks the model to continue (up to 3 times in a row) before stopping with exit code 3.
+- Streams fail after 5 minutes without content (keepalives don't count) instead of hanging; long streams that keep producing content are never cut.
+- Python 3.14 is tested in CI.
 
 ### Notes
+- SWE-bench Lite, sympy subset (20 instances, Docker-free harness `scripts/swebench_sympy.py`): 14/20 resolved with claude-sonnet-4-6, 15/20 with claude-haiku-4-5 (single runs; not official SWE-bench numbers).
 - The OpenAI-compatible provider (Ollama, streaming and non-streaming) and the MCP client (`@modelcontextprotocol/server-filesystem`) have now been checked by hand against real servers.
 
 ## 0.2.0 — 2026-10-28
