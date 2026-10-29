@@ -8,6 +8,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 - `--resume` accepts a unique prefix of a session id.
 - REPL: a multi-line paste is sent as one prompt instead of one prompt per line.
 
+### Changed
+- The system prompt asks the agent to find and run the project's own test runner instead of skipping tests when pytest is missing, to fix the same defect in sibling code, and to fix (not just report) remaining wrong output that is part of the task.
+
 ## 0.3.0 — 2026-10-29
 
 ### Added
