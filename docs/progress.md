@@ -2,6 +2,17 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Release 0.6.0 gate evidence
+
+| Gate | Evidence |
+|---|---|
+| 1. CI green | `main` at 53d4dcf: all jobs green; the release workflow re-runs the gate on the tag |
+| 2. ACs | New AC-R6 (one process per session), verified (CI). Other changes since 0.5.0 (SIGTERM/SIGHUP, `/undo` Ctrl-C) have CI tests; the `/undo` Ctrl-C test is Linux-only (macOS skip reason recorded in `tests/test_repl.py`, PR #76) |
+| 3. E2E | `scripts/e2e.sh` at 69686a4 (#76 after it is test-only): claude-sonnet-4-6 `pass=11 fail=0`; claude-haiku-4-5 9/9 PASS before the background job hit its time limit, then the remaining 2 tasks (recover-failing-cmd, refuse-injection) PASS when run with `E2E_FILTER`, so 11/11 |
+| 4. No open `severity:high` | No open issues at all |
+| 5. Independent review | Session lock: two adversarial-review passes (entry below). SIGTERM/SIGHUP: tenth review (#72). The small #73 REPL change was not reviewed separately |
+| 6. Wheel installs | `uv build` gives `cli_agent_yzf-0.6.0-*`; the workflow smoke-tests the wheel. First release with the `pypi` job: check https://pypi.org/project/cli-agent-yzf/ afterwards |
+
 ## 2026-10-29 — Run 2, session 1: one process per session (PR #77)
 
 - Fixes the review suspicion "two REPLs on one session overwrite each other". Confirmed: each save rewrites the whole history, so the later saver dropped the other's turns. Each process now holds an `flock` on `sessions/ID.lock`; `--resume`, `--continue` and `/resume` refuse a session open in another live process. The lock is taken before loading, so a holder's last save is never overwritten by an older copy. New AC-R6.
