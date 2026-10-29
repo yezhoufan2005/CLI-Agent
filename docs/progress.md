@@ -2,6 +2,22 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Cost of the 0.4.0 prompt; docs refresh
+
+- Cost check from the kept reports (input tokens summed over 20 instances; no prompt caching through the dev proxy, so every turn resends the history):
+
+  | Run | Resolved | Total input tokens | Median turns |
+  |---|---|---|---|
+  | sonnet seed 1, 0.3.0 prompt (v2) | 14/20 | 2.84M | 9 |
+  | sonnet seed 1, 0.4.0 prompt (v3) | 15/20 | 1.90M | 9 |
+  | sonnet seed 1, + file-tools rule (v4) | 15/20 | 2.58M | 9 |
+  | haiku seed 1, 0.3.0 prompt (v2) | 15/20 | 7.93M | 14 |
+  | haiku seed 1, 0.4.0 prompt (v3) | 16/20 | 11.96M | 22 |
+  | haiku seed 2, 0.3.0 → 0.4.0 | 13 → 14/20 | 3.51M → 5.22M | 11 → 14 |
+
+  Sonnet's cost did not rise. Haiku's rose about 50%, from more turns: it now runs tests and more scratch scripts (in seed 1, 366 shell calls and 68 of them test runs). Exact repeated tool calls are rare (≤4 per 20-instance run), so this is not looping. Accepted for now: haiku is several times cheaper per token than sonnet, and the change resolved one more instance on each seed. Revisit if a user-facing cost cap (`--max-session-tokens`) is hit in practice.
+- docs/architecture.md: D5 was stale (it said the sandbox could not be tested); it now describes the opt-in bubblewrap sandbox. New D10 records the file-tools rule and why it is prompt-level.
+
 ## 2026-10-29 — File changes only through file tools (PR #57)
 
 - Observation from the kept SWE-bench transcripts: in 9 of 20 seed-1 sonnet runs the agent edited library source through `run_shell` (python heredocs with `open(p,'w')`, `sed -i`). Those changes bypass the diff display, the `.git/` write guard's file-tool path, and `undo` checkpoints.
