@@ -2,6 +2,27 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — SWE-bench failure analysis; system prompt change (PRs #50–#53)
+
+- PR #50: fixed the flaky `test_repl_decline_and_mode_switch` that turned `main` red after #48. readline prints the prompt before it leaves canonical mode, so an early Ctrl-D arrived as NUL. The test now repeats Ctrl-D until exit (9/15 local failures before, 12/12 passes after).
+- PR #51: `scripts/swebench_sympy.py --keep DIR` saves each instance's events, stderr and diff.
+- Failure analysis, sonnet, the 14 instances unresolved in either seed-1 v2 or seed-2. Agent-side causes seen in the transcripts:
+  - **Tests not run.** In 10 of 13 transcripts the agent said it did not run the existing tests, usually because pytest is not installed in the venv. sympy's own `bin/test` was never tried.
+  - **Sibling defects missed.** In 12454 the same out-of-range loop exists in `_eval_is_upper_hessenberg`; in 11400 the agent noticed `Ne(x, 0)` is invalid C and reported it instead of fixing it.
+  - The rest look like spec ambiguity that hidden tests decide (13043 set vs list, 13177 `is_positive`), which the agent can't see.
+- Change (PR #53): the system prompt asks the agent to discover and run the project's own test runner, to fix the same defect in sibling code, and to fix rather than report remaining wrong output that is part of the task.
+- Measurements, claude-sonnet-4-6, same harness:
+
+  | Set | Before | After |
+  |---|---|---|
+  | 14 previously unresolved (rerun, same session) | 3/14 | 5/14 |
+  | seed 1 (20) | 14/20 (v2) | 15/20 (v3) |
+  | seed 2 (20) | 13/20 | 14/20 (v2) |
+
+  The baseline rerun of the 14 shows run-to-run noise: 3 of them resolved with the unchanged prompt. Every difference above is within noise (±2 per 20), so this is weak evidence. The direction agrees across all three sets, and the change costs nothing on E2E: `scripts/e2e.sh claude-sonnet-4-6` on the branch gave `pass=11 fail=0`. Haiku was not rerun.
+- PR #52: a multi-line paste in the REPL is one prompt, not one prompt per line (pty test fails without the fix).
+- Next candidates: rerun haiku with the new prompt; the 5–6 instances still unresolved look like hidden-spec cases, so further SWE-bench work has diminishing returns. Long-session UX (B-COMPACT) still has no evidence of need.
+
 ## 2026-10-29 — SWE-bench seed 2; small UX and process items (PRs #45–#49)
 
 - SWE-bench Lite sympy, **seed 2** (a second sample of 20; it overlaps the seed-1 set), main at 0.3.0+:
