@@ -315,3 +315,16 @@ def test_doctor_reports_environment(tmp_path: Path) -> None:
     assert "shell sandbox" in r.stdout
     assert "✗ MCP server gone" in r.stdout
     assert "replied: 'OK'" in r.stdout
+
+
+def test_resume_by_unique_prefix(tmp_path: Path) -> None:
+    r1 = run_cli(tmp_path, [{"text": "first"}], "--json", "one")
+    sid = json.loads(r1.stdout.splitlines()[-1])["session_id"]
+    r2 = run_cli(tmp_path, [{"text": "second"}], "--resume", sid[:-3], "--json", "two")
+    assert r2.returncode == 0, r2.stderr
+    assert json.loads(r2.stdout.splitlines()[-1])["session_id"] == sid
+    assert run_cli(tmp_path, [{"text": "other"}], "another session").returncode == 0
+    r3 = run_cli(tmp_path, [{"text": "x"}], "--resume", "2", "--json", "three")
+    assert r3.returncode == 2 and "ambiguous" in r3.stderr
+    r4 = run_cli(tmp_path, [{"text": "x"}], "--resume", "zzz", "--json", "four")
+    assert r4.returncode == 2 and "no session" in r4.stderr

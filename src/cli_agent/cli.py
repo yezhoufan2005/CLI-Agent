@@ -72,7 +72,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="model API: anthropic (default) or openai (any OpenAI-compatible endpoint)",
     )
     p.add_argument("-C", "--cwd", type=Path, help="workspace root (default: current directory)")
-    p.add_argument("--resume", metavar="ID", help="resume a saved session")
+    p.add_argument(
+        "--resume",
+        metavar="ID",
+        help="resume a saved session (a unique prefix of the id is enough)",
+    )
     p.add_argument(
         "-c",
         "--continue",
@@ -451,7 +455,7 @@ def _open_session(
     store: SessionStore, args: argparse.Namespace, root: Path, cfg: Config
 ) -> Session:
     if args.resume:
-        session = store.load(args.resume)
+        session = store.load(store.resolve_id(args.resume))
     elif args.cont:
         found = store.latest_for(str(root))
         if found is None:

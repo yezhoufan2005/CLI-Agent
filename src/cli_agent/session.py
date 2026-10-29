@@ -139,6 +139,21 @@ class SessionStore:
             raise ValueError(f"session file {path} is corrupt: {err}") from err
         return Session.from_dict(data)
 
+    def resolve_id(self, prefix: str) -> str:
+        """Expand a unique prefix (or the exact id) to a full session id."""
+        self.path(prefix)  # validates the characters
+        if (self.dir / f"{prefix}.json").exists():
+            return prefix
+        matches = (
+            sorted(p.stem for p in self.dir.glob(f"{prefix}*.json")) if self.dir.exists() else []
+        )
+        if not matches:
+            raise FileNotFoundError(f"no session {prefix!r} in {self.dir}")
+        if len(matches) > 1:
+            shown = ", ".join(matches[:5]) + (" …" if len(matches) > 5 else "")
+            raise ValueError(f"session id {prefix!r} is ambiguous: {shown}")
+        return matches[0]
+
     def list(self) -> list[Session]:
         if not self.dir.exists():
             return []
