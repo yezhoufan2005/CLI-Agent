@@ -9,6 +9,8 @@ Status: early (0.x). See [docs/progress.md](docs/progress.md) for what is verifi
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/) (or pip).
 
 ```bash
+uv tool install https://github.com/yezhoufan2005/CLI-Agent/releases/download/v0.3.0/cli_agent-0.3.0-py3-none-any.whl
+# or the latest main:
 uv tool install git+https://github.com/yezhoufan2005/CLI-Agent
 # or, from a checkout:
 uv tool install .
@@ -112,11 +114,27 @@ They appear to the model as `mcp__<server>__<tool>`. Every MCP tool counts as a 
 
 Precedence: defaults < config file < environment (`CLI_AGENT_PROVIDER`, `CLI_AGENT_MODEL`, `CLI_AGENT_MODE`, `ANTHROPIC_*` / `OPENAI_*`) < flags. `provider = "openai"` in the config file selects the OpenAI-compatible provider.
 
+## How well does it work?
+
+Measured with real models; full method and caveats in [docs/progress.md](docs/progress.md):
+
+| Benchmark | claude-sonnet-4-6 | claude-haiku-4-5 |
+|---|---|---|
+| Built-in E2E tasks (`scripts/e2e.sh`, 11 tasks) | 11/11 | 11/11 |
+| Exercism Python, 30 exercises, hidden tests (`scripts/bench.py`) | 27/30 | 27/30 |
+| SWE-bench Lite, 20 sympy instances, Docker-free (`scripts/swebench_sympy.py`) | 14/20 | 15/20 |
+
+These are single runs on small samples, not official leaderboard numbers.
+
 ## Development
 
 ```bash
+./scripts/setup-dev.sh  # once: sync deps, enable the pre-commit hook
 ./scripts/check.sh      # format, lint, type-check, tests — the same gate CI runs
+./scripts/e2e.sh        # real-model tasks (needs credentials; not run in CI)
 ```
+
+Release procedure: [docs/release.md](docs/release.md).
 
 Docs: [product spec](docs/product.md) · [architecture](docs/architecture.md) · [operating model](docs/operating-model.md) · [backlog](docs/backlog.md) · [progress](docs/progress.md).
 
