@@ -2,6 +2,14 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — 0.3.0 released
+
+- https://github.com/yezhoufan2005/CLI-Agent/releases/tag/v0.3.0 was built by the release workflow after `main` CI passed. Verified: downloaded the assets, `sha256sum -c` ok, clean-venv install reports `cli-agent 0.3.0`.
+- Next candidates:
+  1. Analyse the 5–6 SWE-bench instances that remain unresolved for agent-side causes.
+  2. A second SWE-bench seed to reduce noise.
+  3. Long-running interactive UX (session listing, a resume picker).
+
 ## 2026-10-29 — Release 0.3.0 gate evidence
 
 | Gate | Evidence |
