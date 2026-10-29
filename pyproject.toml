@@ -1,6 +1,6 @@
 [project]
 name = "cli-agent-yzf"
-version = "0.5.0"
+version = "0.6.0"
 description = "An autonomous coding agent for the terminal"
 readme = "README.md"
 authors = [
