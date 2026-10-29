@@ -97,7 +97,8 @@ class Checkpoints:
 
     def begin(self, label: str) -> None:
         cid = secrets.token_hex(8)
-        self._current = cid
+        # Until the new checkpoint is saved, record nothing into the previous one.
+        self._current = None
         self._shell = 0
 
         def add(stack: list[dict[str, Any]]) -> None:
@@ -116,6 +117,7 @@ class Checkpoints:
             _trim(stack)
 
         self._update(add)
+        self._current = cid
 
     def record(self, path: Path, before: bytes | None, after: str) -> None:
         """Record a write. `before` is the file's exact bytes before this write
@@ -181,13 +183,28 @@ class Checkpoints:
         with self._locked():
             stack = self._load()
             take(stack)
-            self._save(stack)
             if not found:
+                self._save(stack)
                 return None
-            return self._revert(found[0])
+            cp = found[0]
+            report = UndoReport(label=cp["label"], shell_commands=shell_count(cp))
+            try:
+                self._revert(cp, report)
+            except OSError as err:
+                # Keep what was not reverted, so a retry can finish the job.
+                done = set(report.restored) | set(report.deleted)
+                cp["files"] = {k: v for k, v in cp["files"].items() if k not in done}
+                stack.append(cp)
+                self._save(stack)
+                reverted = ", ".join(sorted(done)) or "nothing"
+                raise OSError(
+                    f"{err}; reverted before the failure: {reverted}. "
+                    "Fix the cause and run undo again for the rest"
+                ) from err
+            self._save(stack)
+            return report
 
-    def _revert(self, cp: dict[str, Any]) -> UndoReport:
-        report = UndoReport(label=cp["label"], shell_commands=shell_count(cp))
+    def _revert(self, cp: dict[str, Any], report: UndoReport) -> None:
         for rel, entry in sorted(cp["files"].items()):
             target = self.root / rel
             # Never follow a symlink (the user may have swapped one in since) and
@@ -205,7 +222,6 @@ class Checkpoints:
             else:
                 _write(target, base64.b64decode(entry["original"]))
                 report.restored.append(rel)
-        return report
 
     def _update(self, change: Callable[[list[dict[str, Any]]], None]) -> None:
         with self._locked():
@@ -264,6 +280,11 @@ def _trim(stack: list[dict[str, Any]]) -> None:
     oldest first, so they can't push real file changes out of reach of undo."""
     while len(stack) > MAX_CHECKPOINTS:
         shell_only = [i for i, cp in enumerate(stack[:-1]) if not cp["files"]]
+        with_files = [i for i, cp in enumerate(stack) if cp["files"]]
+        # Keep the newest shell-only prompt after the last file change, so undo
+        # still reports it instead of silently going back past it.
+        if shell_only and (not with_files or shell_only[-1] > with_files[-1]):
+            shell_only.pop()
         del stack[shell_only[0] if shell_only else 0]
 
 

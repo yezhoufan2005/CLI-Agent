@@ -139,7 +139,11 @@ class SessionStore:
         if not path.exists():
             raise FileNotFoundError(f"no session {session_id!r} in {self.dir}")
         try:
-            return Session.from_dict(json.loads(path.read_text(encoding="utf-8")))
+            session = Session.from_dict(json.loads(path.read_text(encoding="utf-8")))
+            if session.id != session_id:
+                # Saving would overwrite the file of the session named inside.
+                raise ValueError(f"it names a different session id {session.id!r}")
+            return session
         except (OSError, ValueError, TypeError, AttributeError, KeyError) as err:
             raise ValueError(
                 f"session file {path} is corrupt or not a valid session: {err}"
