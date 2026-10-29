@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Security
+- Development dependency pytest 8.4.2 → 9.2.0 (CVE-2025-71176: predictable `/tmp/pytest-of-USER` directories on shared machines). The installed package is unaffected; pytest is only used to run the test suite.
+
 ## 0.6.0 — 2026-10-29
 
 ### Changed
