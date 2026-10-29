@@ -122,7 +122,7 @@ Measured with real models; full method and caveats in [docs/progress.md](docs/pr
 |---|---|---|
 | Built-in E2E tasks (`scripts/e2e.sh`, 11 tasks) | 11/11 | 11/11 |
 | Exercism Python, 30 exercises, hidden tests (`scripts/bench.py`) | 27/30 | 27/30 |
-| SWE-bench Lite, 20 sympy instances, Docker-free (`scripts/swebench_sympy.py`) | 14/20 | 15/20 |
+| SWE-bench Lite sympy, 2 samples of 20, Docker-free (`scripts/swebench_sympy.py`) | 27/40 | 28/40 |
 
 These are single runs on small samples, not official leaderboard numbers.
 
