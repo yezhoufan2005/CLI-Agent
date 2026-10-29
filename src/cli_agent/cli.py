@@ -30,7 +30,7 @@ from cli_agent.sandbox import resolve as resolve_sandbox
 from cli_agent.session import Session, SessionStore, default_state_dir, new_session_id
 from cli_agent.tools import ToolContext, default_tools
 from cli_agent.tools.shell import scrubbed_env
-from cli_agent.ui import JsonUI, TerminalUI
+from cli_agent.ui import JsonUI, TerminalUI, escape_controls
 from cli_agent.workspace import git_warning
 
 SUBCOMMANDS = ("sessions", "doctor", "undo")
@@ -464,7 +464,7 @@ def _run(
         save=store.save,
     )
     if interactive_repl:
-        return _repl(agent, session, ui)
+        return _repl(agent, session, ui, store)
     result = agent.run(session, prompt)
     return _finish(result, session, ui)
 
@@ -555,7 +555,21 @@ def _read_prompt(queued: list[str]) -> tuple[str, bool]:
     return "\n".join(lines).strip(), False
 
 
-def _repl(agent: Agent, session: Session, ui: TerminalUI | JsonUI) -> int:
+def _list_workspace_sessions(store: SessionStore, current: Session, limit: int = 10) -> None:
+    mine = [s for s in store.list() if s.cwd == current.cwd]
+    if not any(s.id == current.id for s in mine):
+        mine.insert(0, current)  # not saved yet: nothing has been sent
+    for s in mine[:limit]:
+        mark = "*" if s.id == current.id else " "
+        title = escape_controls(s.title, keep_newlines=False) or "(no prompt yet)"
+        print(f"{mark} {s.id}  {s.updated[:19]}  {title}", file=sys.stderr)
+    if len(mine) > limit:
+        print(f"  … {len(mine) - limit} more (cli-agent sessions --limit 0)", file=sys.stderr)
+
+
+def _repl(
+    agent: Agent, session: Session, ui: TerminalUI | JsonUI, store: SessionStore | None = None
+) -> int:
     try:
         import readline  # noqa: F401  - enables line editing for input()
     except ImportError:
@@ -591,13 +605,37 @@ def _repl(agent: Agent, session: Session, ui: TerminalUI | JsonUI) -> int:
                 "/exit  quit\n"
                 "/undo  revert the file changes of the last prompt\n"
                 "/usage  token usage\n"
-                "/mode MODE  change permission mode",
+                "/mode MODE  change permission mode\n"
+                "/sessions  list this workspace's sessions\n"
+                "/resume ID  switch to another session of this workspace (id prefix is enough)",
                 file=sys.stderr,
             )
             continue
         if line == "/undo":
             if agent.ctx.checkpoints is not None:
                 cmd_undo(agent.ctx.checkpoints)
+            continue
+        if line == "/sessions" and store is not None:
+            _list_workspace_sessions(store, session)
+            continue
+        if (line == "/resume" or line.startswith("/resume ")) and store is not None:
+            parts = line.split()
+            if len(parts) != 2:
+                print("usage: /resume ID  (see /sessions)", file=sys.stderr)
+                continue
+            try:
+                other = store.load(store.resolve_id(parts[1]))
+            except (FileNotFoundError, ValueError) as err:
+                print(str(err), file=sys.stderr)
+                continue
+            if other.cwd != session.cwd:
+                print(
+                    f"session {other.id} belongs to {other.cwd}, not this workspace",
+                    file=sys.stderr,
+                )
+                continue
+            session = other
+            print(f"now in session {session.id}: {session.title}", file=sys.stderr)
             continue
         if line == "/usage":
             print(json.dumps(session.usage.to_dict()), file=sys.stderr)

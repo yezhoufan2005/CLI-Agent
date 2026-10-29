@@ -258,3 +258,30 @@ def test_mode_command_typed_before_an_approval_still_applies(tmp_path: Path) -> 
     t.send("/exit")
     assert t.close() == 0
     assert not (tmp_path / "work/w.txt").exists()
+
+
+def test_sessions_list_and_resume_inside_the_repl(tmp_path: Path) -> None:
+    t = Term(tmp_path, [{"text": "first reply"}])
+    t.expect("Type /exit")
+    t.send("first session prompt")
+    t.expect("first reply")
+    t.send("/exit")
+    assert t.close() == 0
+    (first,) = (tmp_path / "state/cli-agent/sessions").glob("*.json")
+
+    t = Term(tmp_path, [{"text": "back in the first"}])
+    t.expect("Type /exit")
+    t.send("/sessions")
+    t.expect("first session prompt")
+    t.expect("(no prompt yet)")  # the current, unsaved session is listed and marked
+    t.send("/resume nosuch")
+    t.expect("no session 'nosuch'")
+    t.send(f"/resume {first.stem[:-2]}")
+    t.expect(f"now in session {first.stem}")
+    t.send("continue there")
+    t.expect("back in the first")
+    t.send("/exit")
+    assert t.close() == 0
+    texts = [m["content"][0].get("text") for m in json.loads(first.read_text())["messages"]]
+    assert "continue there" in texts
+    assert len(list((tmp_path / "state/cli-agent/sessions").glob("*.json"))) == 1
