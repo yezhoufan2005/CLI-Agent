@@ -3,6 +3,9 @@ after every turn so a killed process loses at most the in-flight turn."""
 
 from __future__ import annotations
 
+import atexit
+import contextlib
+import fcntl
 import json
 import os
 import secrets
@@ -11,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from cli_agent import log
 from cli_agent.messages import (
     Message,
     TextBlock,
@@ -106,9 +110,89 @@ class Session:
             self.title = " ".join(text.split())[:80]
 
 
+class SessionBusy(ValueError):
+    """Another process has the session open; both saving would lose one's turns."""
+
+
 class SessionStore:
     def __init__(self, directory: Path | None = None):
         self.dir = (directory or default_state_dir()) / "sessions"
+        self._locks: dict[str, int] = {}
+
+    def claim(self, session_id: str) -> str:
+        """Hold the session's lock until `release` or process exit.
+
+        Every save rewrites the whole history, so two processes on one session
+        would silently drop each other's turns. The lock is a separate file
+        because `save` replaces the session file (and with it any lock on it).
+        Returns a warning if the lock could not be taken; work goes on without it.
+        """
+        if session_id in self._locks:
+            return ""
+        lock = self.path(session_id).with_suffix(".lock")
+        for _ in range(5):
+            try:
+                self.dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+                fd = self._open_lock(lock)
+            except OSError as err:
+                return self._no_lock(session_id, err)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                held, current = os.fstat(fd), os.stat(lock, follow_symlinks=False)
+            except BlockingIOError:
+                os.close(fd)
+                raise SessionBusy(
+                    f"session {session_id} is open in another cli-agent process; "
+                    "finish it there, or start a new session"
+                ) from None
+            except OSError as err:  # no flock support here, or the file was just removed
+                os.close(fd)
+                if isinstance(err, FileNotFoundError):
+                    continue
+                return self._no_lock(session_id, err)
+            if (held.st_dev, held.st_ino) == (current.st_dev, current.st_ino):
+                if not self._locks:
+                    atexit.register(self.release_all)
+                self._locks[session_id] = fd
+                return ""
+            os.close(fd)  # locked a file that was replaced meanwhile; take the new one
+        return self._no_lock(session_id, OSError("the lock file keeps changing"))
+
+    @staticmethod
+    def _open_lock(lock: Path) -> int:
+        flags = os.O_CREAT | os.O_NOFOLLOW
+        try:
+            # Read-write: Linux NFS emulates flock with fcntl locks, which need it.
+            return os.open(lock, os.O_RDWR | flags, 0o600)
+        except PermissionError:
+            # A read-only lock file (e.g. restored from a backup); local flock works.
+            return os.open(lock, os.O_RDONLY | flags, 0o600)
+
+    def _no_lock(self, session_id: str, err: OSError) -> str:
+        log.event("session_lock_error", error=str(err)[:300])
+        return (
+            f"could not lock session {session_id} ({err}); "
+            "another cli-agent process could open it at the same time"
+        )
+
+    def release(self, session_id: str) -> None:
+        fd = self._locks.pop(session_id, None)
+        if fd is None:
+            return
+        # Unlink while still holding the lock: a process that opened the old file
+        # meanwhile sees a different inode after locking it and starts over. Only
+        # our own file: if it was removed and another process locked a new one,
+        # deleting that would let a third process in.
+        lock = self.path(session_id).with_suffix(".lock")
+        with contextlib.suppress(OSError):
+            held, current = os.fstat(fd), os.stat(lock, follow_symlinks=False)
+            if (held.st_dev, held.st_ino) == (current.st_dev, current.st_ino):
+                os.unlink(lock)
+        os.close(fd)
+
+    def release_all(self) -> None:
+        for session_id in list(self._locks):
+            self.release(session_id)
 
     def path(self, session_id: str) -> Path:
         if (

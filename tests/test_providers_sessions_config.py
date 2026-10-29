@@ -242,3 +242,74 @@ def test_session_file_naming_another_id_is_refused(tmp_path: Path) -> None:
     (store.dir / "aaaaaa.json").write_text((store.dir / "bbbbbb.json").read_text())
     with pytest.raises(ValueError, match="different session id"):
         store.load("aaaaaa")
+
+
+def test_session_claim_excludes_other_holders(tmp_path: Path) -> None:
+    from cli_agent.session import SessionBusy
+
+    mine, other = SessionStore(tmp_path), SessionStore(tmp_path)
+    mine.claim("abc")
+    mine.claim("abc")  # already held here: no-op
+    with pytest.raises(SessionBusy, match="open in another cli-agent process"):
+        other.claim("abc")
+    other.claim("abd")  # other sessions are unaffected
+    mine.release("abc")
+    other.claim("abc")
+
+
+def test_session_lock_works_with_a_read_only_lock_file(tmp_path: Path) -> None:
+    from cli_agent.session import SessionBusy
+
+    mine = SessionStore(tmp_path)
+    assert mine.claim("abc") == ""
+    (tmp_path / "sessions" / "abc.lock").chmod(0o400)  # e.g. restored from a backup
+    with pytest.raises(SessionBusy):
+        SessionStore(tmp_path).claim("abc")
+    mine.release_all()
+    assert not list((tmp_path / "sessions").glob("*.lock"))  # released locks leave no file
+
+
+def test_session_claim_racing_a_release_locks_the_current_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import fcntl
+
+    from cli_agent import session as session_mod
+    from cli_agent.session import SessionBusy
+
+    holder, racer = SessionStore(tmp_path), SessionStore(tmp_path)
+    holder.claim("abc")
+    real_flock = fcntl.flock
+    calls = []
+
+    def flock(fd: int, op: int) -> None:
+        if not calls:  # the holder exits between the racer's open and its flock
+            holder.release("abc")
+        calls.append(op)
+        real_flock(fd, op)
+
+    monkeypatch.setattr(session_mod.fcntl, "flock", flock)
+    assert racer.claim("abc") == ""
+    assert len(calls) == 2  # the first lock was on the removed file; it retried
+    monkeypatch.setattr(session_mod.fcntl, "flock", real_flock)
+    with pytest.raises(SessionBusy):
+        SessionStore(tmp_path).claim("abc")
+
+
+def test_session_lock_problem_is_a_warning_not_an_error(tmp_path: Path) -> None:
+    (tmp_path / "sessions").mkdir()
+    (tmp_path / "sessions" / "abc.lock").mkdir()
+    warning = SessionStore(tmp_path).claim("abc")
+    assert "could not lock session abc" in warning
+
+
+def test_release_does_not_remove_another_holders_lock_file(tmp_path: Path) -> None:
+    from cli_agent.session import SessionBusy
+
+    first, second = SessionStore(tmp_path), SessionStore(tmp_path)
+    first.claim("abc")
+    (tmp_path / "sessions" / "abc.lock").unlink()  # e.g. a cleanup script
+    second.claim("abc")  # known limitation: the removed lock no longer excludes
+    first.release("abc")
+    with pytest.raises(SessionBusy):  # but the second holder's lock still does
+        SessionStore(tmp_path).claim("abc")

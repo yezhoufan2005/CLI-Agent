@@ -387,7 +387,7 @@ def main(argv: list[str] | None = None) -> int:
     can_ask = stdin_tty and not args.json
 
     try:
-        session = _open_session(store, args, root, cfg)
+        session, lock_warning = _open_session(store, args, root, cfg)
     except (FileNotFoundError, ValueError) as err:
         _err(str(err))
         return EXIT_USAGE
@@ -410,6 +410,8 @@ def main(argv: list[str] | None = None) -> int:
     except SandboxUnavailable as err:
         _err(f"sandbox=required but {err}")
         return EXIT_USAGE
+    if lock_warning:
+        ui.on_notice(lock_warning)
     if sandbox_note:
         ui.on_notice(sandbox_note)
     if cfg.mode != "read-only":
@@ -511,19 +513,25 @@ def _run(
 
 def _open_session(
     store: SessionStore, args: argparse.Namespace, root: Path, cfg: Config
-) -> Session:
+) -> tuple[Session, str]:
+    """The session to run in, and a warning if it could not be locked."""
     if args.resume is not None:
-        session = store.load(store.resolve_id(args.resume))
+        session_id = store.resolve_id(args.resume)
     elif args.cont:
         found = store.latest_for(str(root))
         if found is None:
             raise FileNotFoundError(f"no previous session for {root}")
-        session = found
+        session_id = found.id
     else:
-        return Session(id=new_session_id(), cwd=str(root), model=cfg.model)
+        session = Session(id=new_session_id(), cwd=str(root), model=cfg.model)
+        return session, store.claim(session.id)
+    # Claim before loading, so a process that saves and exits just before cannot
+    # have its last turn overwritten by a copy read earlier.
+    warning = store.claim(session_id)
+    session = store.load(session_id)
     if session.cwd != str(root):
         raise ValueError(f"session {session.id} belongs to {session.cwd}; run it there or use -C")
-    return session
+    return session, warning
 
 
 def _finish(result: RunResult, session: Session, ui: TerminalUI | JsonUI) -> int:
@@ -699,17 +707,24 @@ def _repl(
             if len(parts) != 2:
                 print("usage: /resume ID  (see /sessions)", file=sys.stderr)
                 continue
+            other_id = ""
             try:
-                other = store.load(store.resolve_id(parts[1]))
+                other_id = store.resolve_id(parts[1])
+                warning = store.claim(other_id)  # before loading; see _open_session
+                other = store.load(other_id)
+                if other.cwd != session.cwd:
+                    raise ValueError(
+                        f"session {other.id} belongs to {other.cwd}, not this workspace"
+                    )
             except (FileNotFoundError, ValueError) as err:
                 print(str(err), file=sys.stderr)
+                if other_id and other_id != session.id:
+                    store.release(other_id)
                 continue
-            if other.cwd != session.cwd:
-                print(
-                    f"session {other.id} belongs to {other.cwd}, not this workspace",
-                    file=sys.stderr,
-                )
-                continue
+            if warning:
+                print(warning, file=sys.stderr)
+            if other.id != session.id:
+                store.release(session.id)
             session = other
             title = escape_controls(session.title, keep_newlines=False)
             print(f"now in session {session.id}: {title}", file=sys.stderr)

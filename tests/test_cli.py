@@ -460,3 +460,35 @@ def test_sigterm_in_json_mode_still_emits_a_result_event(tmp_path: Path) -> None
     assert proc.returncode == 128 + signal.SIGTERM
     result = json.loads(out.strip().splitlines()[-1])
     assert result["event"] == "result" and result["status"] == "interrupted"
+
+
+def _hold_session_lock(tmp_path: Path, session_id: str) -> int:
+    """Take the session's lock as another cli-agent process would."""
+    import fcntl
+
+    sessions = tmp_path / "state/cli-agent/sessions"
+    fd = os.open(sessions / f"{session_id}.lock", os.O_RDWR | os.O_CREAT, 0o600)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    return fd
+
+
+def test_a_session_open_elsewhere_is_not_resumed(tmp_path: Path) -> None:
+    r1 = run_cli(tmp_path, [{"text": "first"}], "--json", "one")
+    sid = json.loads(r1.stdout.splitlines()[-1])["session_id"]
+    path = tmp_path / "state/cli-agent/sessions" / f"{sid}.json"
+    before = path.read_text()
+    fd = _hold_session_lock(tmp_path, sid)
+    try:
+        for args in (["--resume", sid], ["--continue"]):
+            r = run_cli(tmp_path, [{"text": "x"}], *args, "--json", "two")
+            assert r.returncode == 2, r.stderr
+            assert "open in another cli-agent process" in r.stderr
+            assert path.read_text() == before
+    finally:
+        os.close(fd)
+    r = run_cli(tmp_path, [{"text": "second"}], "--resume", sid, "--json", "two")
+    assert r.returncode == 0, r.stderr  # released with the holder's exit
+    # Exits after the claim but before the run: no provider credentials.
+    r = run_cli(tmp_path, [], "hi", extra_env={"CLI_AGENT_FAKE_SCRIPT": ""})
+    assert r.returncode == 2, r.stderr
+    assert not list((tmp_path / "state/cli-agent/sessions").glob("*.lock"))
