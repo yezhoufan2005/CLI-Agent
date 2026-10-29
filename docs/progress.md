@@ -2,6 +2,14 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Run 2, session 1: dependency audit, MCP fd leak, default model (PRs #80–#82)
+
+- PR #80: `pip-audit` on the lock file flagged pytest 8.4.2 (CVE-2025-71176, dev-only). Bumped to 9.2.0, and the audit is now clean. The runtime dependency httpx 0.28.1 has no advisories.
+- PR #81: with `-W error`, `test_mcp.py` showed a `ResourceWarning`: the MCP reader thread never closed the server's stdout pipe, so every stopped server leaked an fd. Fixed, and `filterwarnings = ["error"]` now makes such leaks fail CI. Without the fix, test_mcp.py fails under that setting (checked).
+- PR #82: the default model is now `claude-sonnet-5-5` (D11). Checked against the current model table: Sonnet 4.6 and Haiku 4.5 are still active, not deprecated. The adapter sends no `thinking`/`temperature`/`top_p`/`top_k`, so it needs no request changes for the 5.x models. E2E `claude-sonnet-5-5` gives `pass=11 fail=0`. Caveat: `doctor` shows the dev proxy answering both `claude-sonnet-4-6` and `claude-sonnet-5-5` with `claude-sonnet-5.5`, so this run can't show a difference between the two IDs. The change matters for users on the real API. The README now says the benchmark columns are the requested names.
+- Checked and not a problem: prompt caching. The proxy reports no cache fields (two identical 15k-token requests both report full `input_tokens`), so caching can't be measured here. That is a property of the dev proxy, not the product.
+- B-HAIKU-COST stays open. The kept transcripts are gone, so it would need new SWE-bench runs. The proxy maps haiku-4-5 to haiku-5.5, which is $0.10/MTok in, so the cost concern is much smaller than when it was recorded.
+
 ## 2026-10-29 — 0.6.0 released, first PyPI publish
 
 - https://github.com/yezhoufan2005/CLI-Agent/releases/tag/v0.6.0 was built from 7106526 after `main` CI passed. Both the `release` and `pypi` jobs succeeded, so the owner's Trusted Publishing setup works.

@@ -4,7 +4,7 @@
 # Usage: scripts/e2e.sh [model]     Prints one PASS/FAIL line per task.
 set -uo pipefail
 cd "$(dirname "$0")/.."
-MODEL="${1:-${CLI_AGENT_MODEL:-claude-sonnet-4-6}}"
+MODEL="${1:-${CLI_AGENT_MODEL:-claude-sonnet-5-5}}"
 STATE=$(mktemp -d)
 pass=0 fail=0
 FILTER="${E2E_FILTER:-}"

@@ -79,3 +79,7 @@ Diffs in the UI, the `.git/` write guard, and `undo` checkpoints all hang off `w
 - The system prompt tells the model to change file contents only with the file tools, and to use the shell for deletes, moves, and commands the user names. Measured on SWE-bench seed 1 with sonnet, source edits through the shell fell from 9/20 runs to 3/20 with no change in resolved count (docs/progress.md). A stricter wording made the model refuse an explicit `rm`, so the rule is deliberately narrow.
 - `undo` says how many shell commands ran during the prompt it reverts, so the user knows to check `git status`.
 
+
+### D11 Default model: the current Sonnet; no thinking parameters sent
+
+The default is `claude-sonnet-5-5` (since 0.7.0; before that `claude-sonnet-4-6`). The Sonnet tier is kept: it costs half of Opus 5.5 per token, and coding agents run many turns. Requests send no `thinking`, `temperature`, `top_p` or `top_k`, so they stay valid on the 5.x models, which reject sampling parameters and disabled thinking. Thinking blocks in responses are not stored or replayed. Multi-turn tool use works without replaying them (E2E 11/11 on `claude-sonnet-5-5`, 2026-10-29). The cost is that the model does not see its earlier reasoning. History elision (D7) would invalidate replayed blocks anyway. Revisit if measurements show that replaying thinking helps on multi-turn tasks.

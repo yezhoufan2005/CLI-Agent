@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Changed
+- The default model is now `claude-sonnet-5-5`, the current Sonnet, instead of `claude-sonnet-4-6`. It costs less per token ($2/$10 instead of $3/$15 per million input/output tokens), though its tokenizer counts about 30% more tokens for the same text. `claude-sonnet-4-6` is still available: set `model` in the config, `CLI_AGENT_MODEL`, or `--model`.
+
 ### Security
 - Development dependency pytest 8.4.2 → 9.2.0 (CVE-2025-71176: predictable `/tmp/pytest-of-USER` directories on shared machines). The installed package is unaffected; pytest is only used to run the test suite.
 

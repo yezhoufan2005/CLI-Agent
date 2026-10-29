@@ -93,7 +93,7 @@ File tools cannot touch paths outside the workspace (symlinks are resolved first
 `~/.config/cli-agent/config.toml` (override with `CLI_AGENT_CONFIG` or `--config`):
 
 ```toml
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5-5"
 mode = "auto-edit"
 allow = ["run_shell:pytest*", "run_shell:git status*", "run_shell:git diff*"]
 deny = ["run_shell:git push*"]
@@ -126,7 +126,7 @@ Measured with real models; full method and caveats in [docs/progress.md](docs/pr
 | Exercism Python, 30 exercises, hidden tests (`scripts/bench.py`) | 27/30 | 27/30 |
 | SWE-bench Lite sympy, 2 samples of 20, Docker-free (`scripts/swebench_sympy.py`) | 29/40 | 30/40 |
 
-These are single runs on small samples, not official leaderboard numbers.
+These are single runs on small samples, not official leaderboard numbers. The columns name the model that was requested. The development proxy used for these runs answered `claude-sonnet-4-6` requests with `claude-sonnet-5.5` and `claude-haiku-4-5` requests with `claude-haiku-5.5` (as reported by `cli-agent doctor`), so the numbers reflect those newer models.
 
 ## Development
 
