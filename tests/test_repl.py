@@ -219,6 +219,7 @@ def test_input_typed_ahead_does_not_answer_an_approval(tmp_path: Path) -> None:
         {"tool_calls": [{"name": "run_shell", "input": {"command": "sleep 2"}}]},
         {"tool_calls": [{"name": "run_shell", "input": {"command": "touch unseen"}}]},
         {"text": "finished"},
+        {"text": "got the early line"},
     ]
     t = Term(tmp_path, script, "--allow", "run_shell:sleep 2")
     t.expect("Type /exit")
@@ -226,9 +227,34 @@ def test_input_typed_ahead_does_not_answer_an_approval(tmp_path: Path) -> None:
     t.expect("sleep 2")
     t.send("y")  # typed while the first command runs, before the question exists
     t.expect("[y]es")
-    t.expect("ignored input typed before")
+    t.expect("kept for the next prompt: y")
     t.send("n")
     t.expect("finished")
+    t.expect("got the early line")  # the kept line became the next prompt
     t.send("/exit")
     assert t.close() == 0
     assert not (tmp_path / "work/unseen").exists()
+
+
+def test_mode_command_typed_before_an_approval_still_applies(tmp_path: Path) -> None:
+    script = [
+        {"tool_calls": [{"name": "run_shell", "input": {"command": "sleep 2"}}]},
+        {"tool_calls": [{"name": "run_shell", "input": {"command": "true"}}]},
+        {"text": "first done"},
+        {"tool_calls": [{"name": "write_file", "input": {"path": "w.txt", "content": "w"}}]},
+        {"text": "second done"},
+    ]
+    t = Term(tmp_path, script, "--mode", "auto-edit", "--allow", "run_shell:sleep 2")
+    t.expect("Type /exit")
+    t.send("go")
+    t.expect("sleep 2")
+    t.send("/mode read-only")
+    t.expect("[y]es")
+    t.send("y")
+    t.expect("first done")
+    t.expect("mode is now read-only")
+    t.send("write w")
+    t.expect("second done")
+    t.send("/exit")
+    assert t.close() == 0
+    assert not (tmp_path / "work/w.txt").exists()

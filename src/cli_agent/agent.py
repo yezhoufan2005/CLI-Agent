@@ -189,6 +189,12 @@ class Agent:
             session.repair()
             self.save(session)
             return RunResult("interrupted", last_text, turns, "interrupted by user")
+        finally:
+            if self.ctx.checkpoints is not None:
+                try:
+                    self.ctx.checkpoints.finish()
+                except OSError as err:
+                    log.event("checkpoint_error", error=str(err)[:300])
 
     def _shrink(self, session: Session) -> bool:
         """After the API rejected the prompt as too long, compact to half the

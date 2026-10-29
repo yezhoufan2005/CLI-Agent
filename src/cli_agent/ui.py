@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import select
 import sys
@@ -26,23 +27,30 @@ _CONTROL = re.compile(
 )
 
 
-def discard_typeahead(inp: IO[str]) -> bool:
-    """Drop input typed before a question was shown; True if there was any.
+MAX_TYPEAHEAD = 65536
+
+
+def take_typeahead(inp: IO[str]) -> str:
+    """Read and return input typed before a question was shown ("" if none).
 
     Otherwise a line typed ahead while the agent worked (`y`, or just Enter)
-    would answer an approval prompt the user has not seen yet.
+    would answer an approval prompt the user has not seen yet. The text is
+    returned, not thrown away, so a typed-ahead command like `/mode read-only`
+    can still be run by the REPL.
     """
     try:
         if not inp.isatty():
-            return False
-        import termios
-
+            return ""
         fd = inp.fileno()
-        pending = bool(select.select([fd], [], [], 0)[0])
-        termios.tcflush(fd, termios.TCIFLUSH)
-        return pending
-    except (OSError, ValueError, ImportError, AttributeError):
-        return False
+        data = b""
+        while len(data) < MAX_TYPEAHEAD and select.select([fd], [], [], 0)[0]:
+            chunk = os.read(fd, 4096)
+            if not chunk:
+                break
+            data += chunk
+        return data.decode("utf-8", "replace")
+    except (OSError, ValueError, AttributeError):
+        return ""
 
 
 def escape_controls(text: str, *, keep_newlines: bool = True) -> str:
@@ -85,6 +93,9 @@ class TerminalUI:
         self._reset = "\x1b[0m" if color else ""
         self._streamed = False
         self._at_line_start = True
+        self.keep_typeahead = False
+        """Set by the REPL: keep typed-ahead lines for its next prompt."""
+        self.typeahead: list[str] = []
 
     streams = True
 
@@ -174,11 +185,16 @@ class TerminalUI:
             return "unattended"
         print(f"{self._yellow}? approve: {line}{self._reset}", file=self.err)
         self._show_call(call, full=False)
-        if discard_typeahead(self.inp):
-            print(
-                f"{self._dim}  (ignored input typed before this question){self._reset}",
-                file=self.err,
-            )
+        early = take_typeahead(self.inp)
+        if early:
+            lines = early.splitlines()
+            shown = escape_controls(" ⏎ ".join(lines), keep_newlines=False)[:200]
+            if self.keep_typeahead:
+                self.typeahead.extend(lines)
+                note = f"input typed before this question, kept for the next prompt: {shown}"
+            else:
+                note = f"ignored input typed before this question: {shown}"
+            print(f"{self._dim}  ({note}){self._reset}", file=self.err)
         while True:
             print(
                 "  [y]es / [n]o / [a]lways for this session / [v]iew full: ",

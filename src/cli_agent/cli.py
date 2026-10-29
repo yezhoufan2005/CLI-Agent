@@ -202,6 +202,13 @@ def cmd_undo(cps: Checkpoints) -> int:
     if report is None:
         print("nothing to undo: no file changes by the agent are recorded for this workspace")
         return EXIT_OK
+    if report.shell_commands and not report.files_changed:
+        print(
+            f"the last prompt ({report.label}) changed no files through the file tools; "
+            f"it ran {report.shell_commands} shell command(s), whose changes undo cannot "
+            "revert. Run undo again to go back one more prompt."
+        )
+        return EXIT_OK
     print(f"undid changes from: {report.label}")
     for rel in report.restored:
         print(f"  restored {rel}")
@@ -212,7 +219,7 @@ def cmd_undo(cps: Checkpoints) -> int:
     if report.shell_commands:
         print(
             f"note: {report.shell_commands} shell command(s) also ran during that prompt; "
-            "files they changed are not reverted (check `git status`)"
+            "files they changed are not reverted (check `git status` if this is a git repository)"
         )
     return EXIT_OK
 
@@ -514,8 +521,20 @@ def _input_pending() -> bool:
     return bool(ready)
 
 
-def _read_prompt() -> tuple[str, bool]:
-    """Read one prompt; return it and whether stdin hit EOF right after it."""
+def _read_prompt(queued: list[str]) -> tuple[str, bool]:
+    """Read one prompt; return it and whether stdin hit EOF right after it.
+
+    `queued` holds lines typed ahead during an approval question; they come first.
+    """
+    if queued:
+        first = queued.pop(0)
+        print(f"› {first}", file=sys.stderr)
+        if first.lstrip().startswith("/"):
+            return first.strip(), False
+        lines = [first]
+        while queued and not queued[0].lstrip().startswith("/"):
+            lines.append(queued.pop(0))
+        return "\n".join(lines).strip(), False
     first = input("› ")
     # Lines typed ahead while the agent was busy are waiting too; a command must
     # stay on its own so that e.g. `/mode read-only` still applies.
@@ -542,13 +561,17 @@ def _repl(agent: Agent, session: Session, ui: TerminalUI | JsonUI) -> int:
         "Type /exit to quit, /help for commands.",
         file=sys.stderr,
     )
+    queued: list[str] = []
+    if isinstance(ui, TerminalUI):
+        ui.keep_typeahead = True
+        queued = ui.typeahead
     eof = False
     while True:
         if eof:
             print(file=sys.stderr)
             return EXIT_OK
         try:
-            line, eof = _read_prompt()
+            line, eof = _read_prompt(queued)
         except EOFError:
             print(file=sys.stderr)
             return EXIT_OK

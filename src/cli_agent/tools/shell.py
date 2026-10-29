@@ -15,6 +15,7 @@ import tempfile
 import time
 from typing import Any
 
+from cli_agent import log
 from cli_agent.tools.base import Effect, ToolContext, ToolError, ToolResult, require_str, truncate
 
 MAX_TIMEOUT = 600.0
@@ -75,7 +76,10 @@ class RunShell:
         timeout = min(float(timeout), MAX_TIMEOUT)
         env = scrubbed_env(ctx.env or dict(os.environ))
         if ctx.checkpoints is not None:
-            ctx.checkpoints.note_shell()
+            try:
+                ctx.checkpoints.note_shell()
+            except Exception as err:  # noqa: BLE001 - bookkeeping must not block the command
+                log.event("checkpoint_error", error=f"{type(err).__name__}: {err}"[:300])
         _enable_subreaper()
         before = _child_pids()
         # Spool output to a temp file so a chatty command can't exhaust memory via pipes.

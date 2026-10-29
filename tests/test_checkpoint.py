@@ -147,7 +147,65 @@ def test_undo_reports_shell_commands_it_cannot_revert(tmp_path: Path) -> None:
     WriteFile().run({"path": "a.txt", "content": "a"}, ctx)
     RunShell().run({"command": "echo b > b.txt"}, ctx)
     RunShell().run({"command": "true"}, ctx)
+    cps.finish()  # the agent loop calls this when the prompt's run ends
     report = cps.undo()
     assert report is not None and report.deleted == ["a.txt"]
     assert report.shell_commands == 2
     assert (ctx.root / "b.txt").exists()  # documented: shell changes stay
+
+
+def test_shell_only_prompt_is_reported_not_skipped(tmp_path: Path) -> None:
+    from cli_agent.tools.shell import RunShell
+
+    ctx, cps = setup(tmp_path)
+    cps.begin("write b")
+    WriteFile().run({"path": "b.txt", "content": "b"}, ctx)
+    cps.begin("sed it")
+    RunShell().run({"command": "echo c > c.txt"}, ctx)
+    RunShell().run({"command": "true"}, ctx)
+    cps.finish()
+    cps.begin("next prompt")  # an empty prompt must not drop the shell-only one
+    report = Checkpoints(cps.path, ctx.root).undo()
+    assert report is not None and report.label == "sed it"
+    assert report.shell_commands == 2 and not report.files_changed
+    assert (ctx.root / "b.txt").exists()  # the older prompt is not reverted yet
+    report = Checkpoints(cps.path, ctx.root).undo()
+    assert report is not None and report.deleted == ["b.txt"]
+
+
+def test_tampered_shell_count_is_ignored(tmp_path: Path) -> None:
+    ctx, cps = setup(tmp_path)
+    cps.begin("p")
+    WriteFile().run({"path": "a.txt", "content": "a"}, ctx)
+    for bad in [True, -3, 2**70, "x", None, [1], 1.5]:
+        data = json.loads(cps.path.read_text())
+        data["checkpoints"][-1]["shell"] = bad
+        cps.path.write_text(json.dumps(data))
+        cps.note_shell()  # must not raise
+        assert Checkpoints(cps.path, ctx.root)._load()[-1].get("shell") in (bad, 1)
+
+
+def test_shell_command_runs_even_if_checkpoint_bookkeeping_fails(tmp_path: Path) -> None:
+    from cli_agent.tools.shell import RunShell
+
+    ctx, cps = setup(tmp_path)
+    cps.begin("p")
+
+    def broken() -> None:
+        raise PermissionError("state dir is read-only")
+
+    cps.note_shell = broken  # type: ignore[method-assign]
+    RunShell().run({"command": "echo ran > r.txt"}, ctx)
+    assert (ctx.root / "r.txt").read_text() == "ran\n"
+
+
+def test_shell_count_written_once_until_finish(tmp_path: Path) -> None:
+    from cli_agent.tools.shell import RunShell
+
+    ctx, cps = setup(tmp_path)
+    cps.begin("p")
+    for _ in range(3):
+        RunShell().run({"command": "true"}, ctx)
+    assert cps._load()[-1]["shell"] == 1
+    cps.finish()
+    assert cps._load()[-1]["shell"] == 3
