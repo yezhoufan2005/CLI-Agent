@@ -6,10 +6,14 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ### Added
 - `--resume` accepts a unique prefix of a session id.
-- REPL: a multi-line paste is sent as one prompt instead of one prompt per line.
+- REPL: a multi-line paste is sent as one prompt instead of one prompt per line. A line starting with `/` is always handled on its own, so a command typed while the agent is busy still applies.
 
 ### Changed
 - The system prompt asks the agent to find and run the project's own test runner instead of skipping tests when pytest is missing, to fix the same defect in sibling code, and to fix (not just report) remaining wrong output that is part of the task.
+
+### Fixed
+- `--resume` matches the prefix literally (`*`, `?`, `[` are not glob patterns), rejects an empty or over-long id, and reports a non-session or unreadable file as an error instead of a traceback. `--resume` and `--continue` are mutually exclusive.
+- REPL: Ctrl-D typed right after a prompt runs that prompt and then exits, instead of being swallowed.
 
 ## 0.3.0 — 2026-10-29
 

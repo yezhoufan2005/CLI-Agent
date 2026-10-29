@@ -181,3 +181,34 @@ def test_multiline_paste_is_one_prompt(tmp_path: Path) -> None:
     (saved,) = (tmp_path / "state/cli-agent/sessions").glob("*.json")
     first = json.loads(saved.read_text())["messages"][0]
     assert first["content"][0]["text"] == "first line\nsecond line"
+
+
+def test_command_typed_during_a_run_still_applies(tmp_path: Path) -> None:
+    script = [
+        {"tool_calls": [{"name": "run_shell", "input": {"command": "sleep 2"}}]},
+        {"text": "slept"},
+        {"tool_calls": [{"name": "write_file", "input": {"path": "g.txt", "content": "g"}}]},
+        {"text": "after"},
+    ]
+    t = Term(tmp_path, script, "--mode", "auto")
+    t.expect("Type /exit")
+    t.send("sleep please")
+    t.expect("sleep 2")
+    # Typed ahead while the command runs; both lines are waiting when the prompt returns.
+    t.send("/mode read-only")
+    t.send("write g")
+    t.expect("after")
+    t.send("/exit")
+    assert t.close() == 0
+    assert "mode is now read-only" in t.buf
+    assert not (tmp_path / "work/g.txt").exists()
+
+
+def test_ctrl_d_right_after_a_prompt_runs_it_then_exits(tmp_path: Path) -> None:
+    t = Term(tmp_path, [{"text": "answered"}])
+    t.expect("Type /exit")
+    t.expect("›")
+    time.sleep(0.3)  # let readline take the tty (see send_eof)
+    os.write(t.master, b"hello\n\x04")
+    t.expect("answered")
+    assert t.close() == 0

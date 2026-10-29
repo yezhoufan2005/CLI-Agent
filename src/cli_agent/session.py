@@ -111,7 +111,12 @@ class SessionStore:
         self.dir = (directory or default_state_dir()) / "sessions"
 
     def path(self, session_id: str) -> Path:
-        if not session_id or "/" in session_id or session_id.startswith("."):
+        if (
+            not session_id
+            or "/" in session_id
+            or session_id.startswith(".")
+            or len(session_id) > 100
+        ):
             raise ValueError(f"invalid session id {session_id!r}")
         return self.dir / f"{session_id}.json"
 
@@ -134,18 +139,24 @@ class SessionStore:
         if not path.exists():
             raise FileNotFoundError(f"no session {session_id!r} in {self.dir}")
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as err:
-            raise ValueError(f"session file {path} is corrupt: {err}") from err
-        return Session.from_dict(data)
+            return Session.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        except (OSError, ValueError, TypeError, AttributeError, KeyError) as err:
+            raise ValueError(
+                f"session file {path} is corrupt or not a valid session: {err}"
+            ) from err
 
     def resolve_id(self, prefix: str) -> str:
         """Expand a unique prefix (or the exact id) to a full session id."""
         self.path(prefix)  # validates the characters
         if (self.dir / f"{prefix}.json").exists():
             return prefix
+        # Compare literally: glob would treat `*`, `?` and `[` in the prefix as patterns.
         matches = (
-            sorted(p.stem for p in self.dir.glob(f"{prefix}*.json")) if self.dir.exists() else []
+            sorted(
+                p.stem for p in self.dir.glob("*.json") if p.stem.startswith(prefix) and p.is_file()
+            )
+            if self.dir.exists()
+            else []
         )
         if not matches:
             raise FileNotFoundError(f"no session {prefix!r} in {self.dir}")

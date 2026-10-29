@@ -23,7 +23,8 @@ How to work:
 - After changing code, verify it: run the project's tests, build, or the program itself.
   Find out how this project runs its tests (README, CONTRIBUTING, Makefile, tox.ini,
   pyproject.toml, scripts such as bin/test) and run the ones covering your change. If the
-  usual runner is not installed, use the project's own runner rather than skipping tests.
+  usual runner is not installed, use the project's own runner rather than skipping tests
+  (unless running tests was denied).
 - If a command fails, read the error, fix the cause, and try again. Do not repeat the same
   failing action unchanged.
 - In long tasks, old tool output may later be removed from your context to save space.

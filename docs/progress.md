@@ -2,6 +2,20 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Fifth independent review: fixes (PR #54)
+
+A reviewer agent checked v0.3.0..main (prefix `--resume`, REPL paste joining, prompt text) and reproduced 5 findings (scripts in /tmp/review5, not kept). Status:
+
+| # | Sev | Finding | Status |
+|---|---|---|---|
+| 1 | med | A `/mode read-only` typed while a run was going was joined with the next typed line and rejected as bad usage, so the next prompt ran with the looser mode | fixed: a line starting with `/` is never joined (CI: `test_command_typed_during_a_run_still_applies`) |
+| 2 | low | Ctrl-D right after Enter was read as a paste continuation and swallowed | fixed: the prompt runs, then the REPL exits (CI) |
+| 3 | low | `--resume` prefixes were glob patterns (`*bbb` matched) and `**` gave a confusing error | fixed: literal `startswith` (CI) |
+| 4 | low, pre-existing | A 300-char id, a directory named `x.json`, or a non-session `[]` file crashed with a traceback | fixed: ids > 100 chars are invalid; load errors become a clean exit-2 message (CI) |
+| 5 | low, pre-existing | `--resume ''` silently started a new session; `--resume X --continue` silently ignored `--continue` | fixed: empty id is rejected; the flags are mutually exclusive (CI) |
+
+Also from the review: the new prompt line about using the project's own test runner now says "unless running tests was denied", so it can't be read as license to work around a denial. Unverified suspicions, not acted on: macOS libedit read-ahead could defeat the 50 ms paste check; a paste arriving in chunks >50 ms apart over ssh could be partly read by an approval prompt (pre-existing class: approval reads whatever is on stdin).
+
 ## 2026-10-29 — SWE-bench failure analysis; system prompt change (PRs #50–#53)
 
 - PR #50: fixed the flaky `test_repl_decline_and_mode_switch` that turned `main` red after #48. readline prints the prompt before it leaves canonical mode, so an early Ctrl-D arrived as NUL. The test now repeats Ctrl-D until exit (9/15 local failures before, 12/12 passes after).
