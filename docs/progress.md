@@ -7,6 +7,73 @@ Newest entry first. Each entry: what changed, what was verified (with evidence),
 - https://github.com/yezhoufan2005/CLI-Agent/releases/tag/v0.5.0 was built by the release workflow from 30422cd after `main` CI passed. Verified: downloaded the assets, `sha256sum -c` ok, clean-venv install reports `cli-agent 0.5.0`.
 - Session 2 of this run ended here (deadline 05:51 UTC). Next steps are in the gate-evidence entry below.
 
+## 2026-10-29 — Release 0.5.0 gate evidence; state for the next session
+
+| Gate | Evidence |
+|---|---|
+| 1. CI green | `main` at 1768ebd: all jobs green. The release workflow re-ran the gate on the tag (30422cd) |
+| 2. ACs | No new ACs. New behaviour (typeahead handling, shell counts in undo, lock timeout, `/sessions`, `/resume`, headless approval messages) has CI tests in `test_repl.py`, `test_checkpoint.py`, `test_cli.py`, `test_agent.py`, `test_permissions.py` |
+| 3. E2E | `scripts/e2e.sh` at 1768ebd: claude-sonnet-4-6 `pass=11 fail=0`, claude-haiku-4-5 `pass=11 fail=0` (the release commit only changes version strings and docs) |
+| 4. No open `severity:high` | None; only #17 (optional PyPI, needs-human) |
+| 5. Independent review | Reviews 6–9 covered all code since 0.4.0; every reproduced finding is fixed except review 7 #7 (SIGHUP undercount), a known limitation. The small #67 fix was not reviewed again |
+| 6. Wheel installs | Release workflow smoke test, then a manual install from the release asset (entry above) |
+
+Next session, highest value first:
+1. B-HAIKU-COST: haiku uses ~50% more input tokens since 0.4.0. Use `scripts/swebench_sympy.py --keep` transcripts to find avoidable scratch-script turns.
+2. Clean shutdown on SIGHUP/SIGTERM (save session, finish checkpoints): fixes the remaining undercount.
+3. Unverified review suspicions: Ctrl-C during the 10 s lock wait in `/undo` may exit the REPL; two REPLs on one session overwrite each other.
+
+Process note: progress entries for PRs #61–#67 were first written with `str.replace` anchored on a heading that was not yet on `main`, so they silently did not land; restored in PR #70. Insert at the top of the file instead.
+
+## 2026-10-29 — Ninth (focused) review of PR #66: fixes (PR #67)
+
+| # | Sev | Finding | Status |
+|---|---|---|---|
+| 1 | med | The session id check was only in `load()`; `--continue` uses `list()`, so a copied session file still overwrote the original | fixed: `list()` skips files whose stored id ≠ file name (CI: `test_continue_skips_a_session_file_naming_another_id`) |
+| 2 | med (regression from #66) | `_trim` protected an empty live checkpoint and evicted two file checkpoints | fixed: empty checkpoints don't count toward the cap; shell-only ones go first (CI: `test_full_stack_of_file_changes_keeps_all_of_them`) |
+| 3 | low | A leading typed-ahead loosening `/mode` was still applied | fixed: never applied from typed-ahead input (CI) |
+
+Known limitation: with 20 file-change prompts held, a newer shell-only prompt is evicted first, so undo goes past it silently. It holds no data.
+
+## 2026-10-29 — Eighth independent review: fixes (PR #66)
+
+| # | Sev | Finding | Status |
+|---|---|---|---|
+| 1 | med | Since #65 a typed-ahead `/mode read-only` after text was joined into the prompt and never applied | fixed: tightening typed-ahead `/mode` lines are applied first; loosening ones dropped with "type it again" (CI) |
+| 2 | med | A failed `undo` dropped the checkpoint and lost originals; the retry reverted an older prompt | fixed: unreverted files are kept, the error lists what was reverted (CI) |
+| 3 | low-med | A copied session file with another `id` inside overwrote that session on `/resume`/`--resume` | fixed in `load()` (and in `list()` by #67) |
+| 4 | low | `_trim` evicted the newest shell-only prompt | changed again in #67 |
+| 5 | low | `/resume` printed the title unescaped | fixed |
+| 6 | low | After a failed `begin`, records went into the previous checkpoint | fixed |
+
+Unverified: with a stuck lock every `run_shell` waits 10 s.
+
+## 2026-10-29 — Seventh independent review: fixes (PR #65)
+
+| # | Sev | Finding | Status |
+|---|---|---|---|
+| 1 | high (regression of #56) | A `y` typed without Enter stayed in the tty line buffer; Enter at the question answered `y` | fixed: drain, then `tcflush` (CI: `test_partly_typed_answer_does_not_carry_into_the_approval`) |
+| 2 | med | Lines kept at an approval ran as a prompt after Ctrl-C | fixed: Ctrl-C / interrupted runs clear the queue |
+| 3 | med | A kept paste was split at `/` lines, so `/mode auto` inside it ran | fixed: same rule as live input (CI) |
+| 4 | med | Shell-only prompts pushed file edits out of the undo cap | fixed (CI) |
+| 5 | med, pre-existing | A >64 KB or still-arriving paste fed answers to the approval; a `y` line approved | fixed: read until quiet 0.2 s (max 2 s), cap, flush; unrecognized answer = no |
+| 6 | low | The allow hint matched through `sudo`/`env`/`VAR=` and ignored deny rules | fixed: only if `check()` on the plain command allows (CI) |
+| 7 | low | SIGHUP within a second of several shell commands undercounts them | partly: count also saved every ≥1 s. Known limitation |
+
+## 2026-10-29 — Checkpoint lock timeout and REPL sessions (PRs #63, #64)
+
+- B-LOCK-TIMEOUT: the checkpoint `flock` blocked forever. Repro (held lock, then `write_file`): main hung until `timeout 5` killed it; with the fix it returns at once with a note that undo won't cover the write. Polled with a 10 s deadline (CI: `test_held_lock_fails_fast_and_the_write_still_happens`).
+- B-SESSION-PICKER: `/sessions` and `/resume ID` in the REPL (CI: `test_sessions_list_and_resume_inside_the_repl`).
+
+## 2026-10-29 — Sixth independent review: fixes (PR #61)
+
+| # | Sev | Finding | Status |
+|---|---|---|---|
+| 1 | med | The approval `tcflush` discarded a `/mode read-only` typed during a run | fixed: pending input is read, never used as the answer, and kept for the next REPL prompt (CI) |
+| 2 | low-med | `undo` was silent about shell-only prompts | fixed (CI) |
+| 3 | low | A failing `note_shell` blocked the command | fixed: logged, command runs; counts validated (CI) |
+| 4 | low | Every shell command rewrote the checkpoint file (294 ms per call at 107 MB) | fixed: written on the first command and at the end of the run (CI) |
+
 ## 2026-10-29 — Exercism rerun on the 0.4.0+ prompt
 
 - Cross-check that the prompt changes (#53, #57) were not tuned to sympy only: Exercism Python, same 30 exercises (seed 7, exercism/python `6105f6d`), main at the file-tools rule.
