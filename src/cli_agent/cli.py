@@ -198,7 +198,11 @@ def checkpoints_for(root: Path) -> Checkpoints:
 
 
 def cmd_undo(cps: Checkpoints) -> int:
-    report = cps.undo()
+    try:
+        report = cps.undo()
+    except OSError as err:
+        _err(f"undo failed: {err}")
+        return EXIT_ERROR
     if report is None:
         print("nothing to undo: no file changes by the agent are recorded for this workspace")
         return EXIT_OK

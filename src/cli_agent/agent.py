@@ -104,7 +104,10 @@ class Agent:
         session.add_user_text(prompt)
         self.save(session)
         if self.ctx.checkpoints is not None:
-            self.ctx.checkpoints.begin(prompt)
+            try:
+                self.ctx.checkpoints.begin(prompt)
+            except OSError as err:
+                self.ui.on_notice(f"undo is unavailable for this prompt: {err}")
         turns = 0
         shrinks = 0
         continuations = 0

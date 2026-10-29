@@ -29,7 +29,7 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | B-PASTE | P1 | done | REPL: multi-line paste is one prompt; `/` lines stay separate; typed-ahead input never answers approvals but is kept for the next prompt | CI: `test_repl.py` paste, typed-ahead and `/mode` tests |
 | B-PROMPT-BENCH | P1 | done | Use kept SWE-bench transcripts to find agent-side failure causes and fix them in the system prompt | Seed 1+2 resolved counts and E2E recorded per change (docs/progress.md, 2026-10-29) |
 | B-SHELL-EDITS | P1 | done | Agent changes file contents through file tools, so diffs and undo cover them | Shell source edits 9/20 → 3/20 SWE-bench runs; E2E 11/11 |
-| B-LOCK-TIMEOUT | P2 | todo | Checkpoint `flock` has no timeout; a stuck holder hangs file and shell tools until Ctrl-C | Test: a held lock makes the tool fail with a clear message within N s |
+| B-LOCK-TIMEOUT | P2 | done | Checkpoint `flock` has no timeout; a stuck holder hangs file and shell tools until Ctrl-C | Test: a held lock makes the tool fail with a clear message within N s |
 | B-HAIKU-COST | P2 | todo | Haiku's input tokens rose ~50% with the 0.4.0 prompt (more turns, more scratch scripts) | Same SWE-bench seeds with equal or better resolved count and lower total input tokens |
 | B-SESSION-PICKER | P2 | todo | `/sessions` in the REPL and a numbered pick for `--resume` | CLI test |
 

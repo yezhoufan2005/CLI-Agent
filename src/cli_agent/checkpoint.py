@@ -19,12 +19,21 @@ import hashlib
 import json
 import os
 import secrets
+import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 MAX_CHECKPOINTS = 20
+LOCK_TIMEOUT = 10.0
+"""Seconds to wait for another cli-agent process to release the checkpoint lock."""
+
+
+class CheckpointBusy(OSError):
+    """The checkpoint lock stayed held by another process past LOCK_TIMEOUT."""
+
+
 FORMAT_VERSION = 2
 
 
@@ -207,7 +216,20 @@ class Checkpoints:
         lock = self.path.with_suffix(".lock")
         fd = os.open(lock, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
+            # Poll rather than block, so a stuck holder (e.g. a command the model
+            # started that inherited the lock) can't hang every file tool forever.
+            deadline = time.monotonic() + LOCK_TIMEOUT
+            while True:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise CheckpointBusy(
+                            f"undo checkpoints are locked by another process ({lock}); "
+                            "close other cli-agent sessions in this workspace"
+                        ) from None
+                    time.sleep(0.05)
             yield
         finally:
             os.close(fd)  # closing releases the lock

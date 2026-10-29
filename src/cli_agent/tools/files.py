@@ -68,6 +68,18 @@ def encode_text(text: str) -> bytes:
     return text.encode("utf-8", "replace")
 
 
+def _checkpoint(ctx: ToolContext, path: Path, before: bytes | None, after: str) -> str:
+    """Record the write for undo. The write itself already happened, so a
+    failure here is reported as a note on the result, not as a tool error."""
+    if ctx.checkpoints is None:
+        return ""
+    try:
+        ctx.checkpoints.record(path, before, after)
+    except OSError as err:
+        return f"\n[note: the change was made, but undo will not cover it: {err}]"
+    return ""
+
+
 def _atomic_write(path: Path, text: str) -> None:
     _atomic_write_bytes(path, encode_text(text))
 
@@ -188,13 +200,13 @@ class WriteFile:
         before = _read_text(path) if existed else ""
         before_bytes = path.read_bytes() if existed else None
         _atomic_write(path, content)
-        if ctx.checkpoints is not None:
-            ctx.checkpoints.record(path, before_bytes, content)
+        note = _checkpoint(ctx, path, before_bytes, content)
         ctx.read_files.add(path)
         verb = "overwrote" if existed else "created"
         rel = display_path(ctx.root, path)
         return ToolResult(
-            f"{verb} {rel} ({len(content)} chars)", display=unified_diff(rel, before, content)
+            f"{verb} {rel} ({len(content)} chars){note}",
+            display=unified_diff(rel, before, content),
         )
 
 
@@ -244,12 +256,11 @@ class EditFile:
                 raise ToolError("the edit would not change the file (only whitespace differs)")
             before_bytes = path.read_bytes()
             _atomic_write(path, updated)
-            if ctx.checkpoints is not None:
-                ctx.checkpoints.record(path, before_bytes, updated)
+            note = _checkpoint(ctx, path, before_bytes, updated)
             rel = display_path(ctx.root, path)
             return ToolResult(
                 f"edited {rel}: 1 replacement at line {line} (old_string matched only after "
-                "ignoring whitespace differences; new_string was re-indented to match)",
+                f"ignoring whitespace differences; new_string was re-indented to match){note}",
                 display=unified_diff(rel, text, updated),
             )
         if count > 1 and not replace_all:
@@ -260,13 +271,12 @@ class EditFile:
         updated = text.replace(old, new) if replace_all else text.replace(old, new, 1)
         before_bytes = path.read_bytes()
         _atomic_write(path, updated)
-        if ctx.checkpoints is not None:
-            ctx.checkpoints.record(path, before_bytes, updated)
+        note = _checkpoint(ctx, path, before_bytes, updated)
         line = text[: text.index(old)].count("\n") + 1
         n = count if replace_all else 1
         rel = display_path(ctx.root, path)
         return ToolResult(
-            f"edited {rel}: {n} replacement(s), first at line {line}",
+            f"edited {rel}: {n} replacement(s), first at line {line}{note}",
             display=unified_diff(rel, text, updated),
         )
 
