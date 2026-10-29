@@ -48,7 +48,7 @@ cli-agent undo                                                  # revert file ch
 
 `cli-agent undo` (or `/undo` in a session) puts back the files the agent's file tools changed during the most recent prompt, and deletes files it created. Each further undo goes back one more prompt, up to 20. If you edited a file yourself after the agent wrote it, undo leaves that file alone. Changes made through shell commands are not tracked; undo tells you how many shell commands ran in that prompt, so check `git status` for those. The agent is instructed to change file contents only through its file tools, so most edits are covered.
 
-Exit codes: `0` done, `1` error (model/API failure, refusal), `2` usage/config error, `3` stopped incomplete (turn limit, output-token limit, or `--max-session-tokens` budget), `130` interrupted. An interrupted or failed session is saved and can be resumed with `--resume ID`.
+Exit codes: `0` done, `1` error (model/API failure, refusal), `2` usage/config error, `3` stopped incomplete (turn limit, output-token limit, or `--max-session-tokens` budget), `130` interrupted (Ctrl-C), `129`/`143` terminated by SIGHUP/SIGTERM (the running command is killed and the session saved first). An interrupted or failed session is saved and can be resumed with `--resume ID`.
 
 ## Permissions
 

@@ -304,3 +304,37 @@ def test_partly_typed_answer_does_not_carry_into_the_approval(tmp_path: Path) ->
     t.send("/exit")
     assert t.close() == 0
     assert not (tmp_path / "work/pwned").exists()
+
+
+def test_sighup_kills_the_command_and_keeps_undo_count(tmp_path: Path) -> None:
+    import signal
+
+    script = [
+        {
+            "tool_calls": [
+                {"name": "run_shell", "input": {"command": "echo a > a.txt"}},
+                {"name": "run_shell", "input": {"command": "echo b > b.txt"}},
+                {"name": "run_shell", "input": {"command": "sleep 30; touch late"}},
+            ]
+        },
+    ]
+    t = Term(tmp_path, script, "--mode", "auto")
+    t.expect("Type /exit")
+    t.send("go")
+    t.expect("sleep 30")
+    time.sleep(0.5)
+    t.proc.send_signal(signal.SIGHUP)  # the terminal was closed
+    assert t.close() == 128 + signal.SIGHUP
+    time.sleep(0.5)
+    assert not (tmp_path / "work/late").exists()
+    env = {**os.environ, "XDG_STATE_HOME": str(tmp_path / "state"), "HOME": str(tmp_path / "home")}
+    r = subprocess.run(
+        [sys.executable, "-m", "cli_agent", "-C", str(tmp_path / "work"), "undo"],
+        capture_output=True,
+        text=True,
+        env={**env, "CLI_AGENT_CONFIG": str(tmp_path / "config.toml")},
+        timeout=30,
+    )
+    assert "ran 3 shell command(s)" in r.stdout, r.stdout + r.stderr
+    (saved,) = (tmp_path / "state/cli-agent/sessions").glob("*.json")
+    assert json.loads(saved.read_text())["messages"]  # the session was saved

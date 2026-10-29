@@ -67,7 +67,7 @@ Each criterion names its verification. "CI" = automated test in `tests/` run by 
 
 ### Operability
 
-- AC-O1 Exit codes: 0 done, 1 error, 2 usage/config, 3 incomplete, 130 interrupted. (CI)
+- AC-O1 Exit codes: 0 done, 1 error, 2 usage/config, 3 incomplete, 130 interrupted, 129/143 SIGHUP/SIGTERM after a clean save. (CI)
 - AC-O2 Errors are actionable (say what to set or run). (CI for config/credentials)
 - AC-O3 Installable as a wheel with a working `cli-agent` entry point on Linux and macOS, Python 3.11 and 3.13. (CI matrix + build job)
 

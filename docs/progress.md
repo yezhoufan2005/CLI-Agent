@@ -2,6 +2,12 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Clean exit on SIGTERM/SIGHUP (PR #71)
+
+- Fixes the review-7 #7 limitation and next-step 2 of the 0.5.0 entry. SIGTERM/SIGHUP raise `Terminated` (a `KeyboardInterrupt` subclass), so the existing Ctrl-C cleanup runs (kill the command's process group, repair and save the session, write checkpoint counts in `finally`), then the process exits with 128+signal even from the REPL.
+- CI: `test_sighup_kills_the_command_and_keeps_undo_count` (3 shell commands, SIGHUP during the third: exit 129, the `sleep 30; touch late` never finishes, undo reports 3 commands, session saved). Fails without the change.
+- Not independently reviewed yet (session deadline). Next session: review this change, then B-HAIKU-COST.
+
 ## 2026-10-29 — 0.5.0 released
 
 - https://github.com/yezhoufan2005/CLI-Agent/releases/tag/v0.5.0 was built by the release workflow from 30422cd after `main` CI passed. Verified: downloaded the assets, `sha256sum -c` ok, clean-venv install reports `cli-agent 0.5.0`.

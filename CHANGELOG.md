@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Fixed
+- SIGTERM and SIGHUP (closing the terminal) now shut down like Ctrl-C: the running shell command is killed, the session is saved, and undo's shell-command count is written. The exit code is 128 + the signal number (143, 129). Before, the process died without cleanup.
+
 ## 0.5.0 — 2026-10-29
 
 ### Added
