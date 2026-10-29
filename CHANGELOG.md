@@ -4,6 +4,13 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Fixed (seventh review)
+- A partly typed `y` (no Enter) before an approval question no longer becomes the answer when Enter is pressed at the question; partial input is discarded.
+- An unrecognized answer to an approval question now means no, instead of asking again, so leftover pasted lines can't cycle until one says `y`. Typed-ahead input is read until it has been quiet for 0.2 s.
+- Typed-ahead input kept for the REPL follows the same paste rule as live input (a `/mode` line inside a paste is text), and Ctrl-C discards it.
+- Prompts that only ran shell commands are dropped first when the 20-checkpoint undo limit is reached.
+- The allow-rule hint only appears when the plain command would actually be allowed (deny rules, `sudo`/`env`/`VAR=` prefixes are respected).
+
 ### Added
 - REPL: `/sessions` lists this workspace's sessions (the current one marked `*`), and `/resume ID` switches to one of them without restarting.
 

@@ -149,3 +149,14 @@ def test_protected_paths_ask_even_in_auto(tmp_path: Path) -> None:
     # An explicit path rule is a deliberate user choice and is honoured.
     q = PermissionPolicy(mode="ask", root=tmp_path, allow=["write_file:.git/info/*"])
     assert q.check("write_file", "write", {"path": ".git/info/exclude"}).decision == "allow"
+
+
+def test_allow_hint_only_when_the_plain_command_would_run() -> None:
+    p = PermissionPolicy(mode="ask", allow=["run_shell:pytest*", "run_shell:git *"])
+    p.deny = ["run_shell:git push*"]
+    assert "pytest" in p.allow_hint("run_shell", {"command": "pytest -q | tail"})
+    assert p.allow_hint("run_shell", {"command": "git push > /tmp/log"}) == ""  # denied plain
+    assert p.allow_hint("run_shell", {"command": "sudo pytest -q | tail"}) == ""
+    assert p.allow_hint("run_shell", {"command": "PYTHONPATH=src pytest -q | tail"}) == ""
+    for cmd in ["pytest -q | tail", "git push > /tmp/log", "sudo pytest | tail"]:
+        assert p.check("run_shell", "execute", {"command": cmd}).decision != "allow"

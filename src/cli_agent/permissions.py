@@ -210,7 +210,8 @@ def operator_blocked_rules(allow: list[str], command: str) -> list[str]:
     segments = shell_segments(command)
     if not segments:
         return []
-    first = " ".join(_words(segments[0]))
+    # Match the segment as written: allow rules see `sudo x` and `A=1 x` as is.
+    first = segments[0]
     found = []
     for rule in allow:
         name, glob = _rule_parts(rule)
@@ -242,6 +243,11 @@ class PermissionPolicy:
         command = call_subject(tool_name, args, self.root) or ""
         rules = operator_blocked_rules(self.allow, command)
         if not rules:
+            return ""
+        # Only hint if the plain command really would run without a question
+        # (deny rules and the built-in guard still apply to it).
+        first = shell_segments(command)[0]
+        if self.check(tool_name, "execute", {"command": first}).decision != "allow":
             return ""
         shown = ", ".join(repr(r) for r in rules)
         return (

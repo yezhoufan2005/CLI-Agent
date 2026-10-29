@@ -30,7 +30,7 @@ def test_approval_answers() -> None:
         ("n\n", "no"),
         ("\n", "no"),
         ("", "no"),
-        ("what\ny\n", "yes"),
+        ("what\ny\n", "no"),  # an unrecognized line refuses; it is not re-asked
     ]:
         ui, _ = make_ui(text)
         assert ui.approve(call, "$ ls") == expected

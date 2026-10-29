@@ -7,6 +7,7 @@ import os
 import re
 import select
 import sys
+import time
 from typing import IO, Any
 
 from cli_agent.agent import Approval
@@ -30,25 +31,41 @@ _CONTROL = re.compile(
 MAX_TYPEAHEAD = 65536
 
 
+TYPEAHEAD_QUIET = 0.2
+TYPEAHEAD_MAX_WAIT = 2.0
+
+
 def take_typeahead(inp: IO[str]) -> str:
     """Read and return input typed before a question was shown ("" if none).
 
     Otherwise a line typed ahead while the agent worked (`y`, or just Enter)
     would answer an approval prompt the user has not seen yet. The text is
     returned, not thrown away, so a typed-ahead command like `/mode read-only`
-    can still be run by the REPL.
+    can still be run by the REPL. Reading continues until input has been quiet
+    for TYPEAHEAD_QUIET, so the rest of a paste that is still arriving is
+    taken too; text past MAX_TYPEAHEAD is dropped. Finally the terminal's
+    input queue is flushed, which also drops a partly typed line (a `y`
+    without Enter) that would otherwise become the start of the answer.
     """
     try:
         if not inp.isatty():
             return ""
         fd = inp.fileno()
         data = b""
-        while len(data) < MAX_TYPEAHEAD and select.select([fd], [], [], 0)[0]:
+        deadline = time.monotonic() + TYPEAHEAD_MAX_WAIT
+        while time.monotonic() < deadline and select.select([fd], [], [], TYPEAHEAD_QUIET)[0]:
             chunk = os.read(fd, 4096)
             if not chunk:
                 break
-            data += chunk
-        return data.decode("utf-8", "replace")
+            if len(data) < MAX_TYPEAHEAD:
+                data += chunk
+        try:
+            import termios
+
+            termios.tcflush(fd, termios.TCIFLUSH)
+        except ImportError:
+            pass
+        return data[:MAX_TYPEAHEAD].decode("utf-8", "replace")
     except (OSError, ValueError, AttributeError):
         return ""
 
@@ -214,6 +231,11 @@ class TerminalUI:
                 return "always"
             if answer in ("v", "view"):
                 self._show_call(call, full=True)
+                continue
+            # Anything else (a stray line from a paste, a typo) is a refusal, so
+            # leftover input can never cycle through the question until a `y`.
+            print(f"  {self._dim}(not an answer; not running it){self._reset}", file=self.err)
+            return "no"
 
 
 class JsonUI:
