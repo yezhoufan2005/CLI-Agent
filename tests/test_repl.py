@@ -350,8 +350,10 @@ def test_ctrl_c_during_undo_lock_wait_keeps_the_repl(tmp_path: Path) -> None:
     lock.parent.mkdir(parents=True, exist_ok=True)
     with open(lock, "w") as held:
         fcntl.flock(held, fcntl.LOCK_EX)  # another session holds the checkpoints
+        # Let readline set up the tty first: input typed before that can be lost (macOS).
+        time.sleep(0.5)
         t.send("/undo")
-        time.sleep(1)
+        time.sleep(2)
         os.write(t.master, b"\x03")  # Ctrl-C
         t.expect("undo cancelled")
     t.send("hello")
