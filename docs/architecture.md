@@ -40,9 +40,9 @@ Every tool declares an `effect` (`read`/`write`/`execute`). `PermissionPolicy.ch
 
 Trust boundary: the model, repository files, and tool output are untrusted. Only the user's config file, CLI flags, and interactive answers can grant permissions. Project instruction files are fenced in the system prompt as conventions that cannot override safety rules (a mitigation, not a guarantee — prompt injection is not solved; the policy layer is what actually enforces limits).
 
-### D5 Shell is not sandboxed in 0.1 (accepted limitation)
+### D5 Shell sandbox is opt-in (accepted limitation)
 
-`run_shell` runs `bash -c` in the workspace with a scrubbed environment, empty stdin, own process group, timeout, and bounded output. It is not an OS sandbox: an approved command can touch anything the user can. bubblewrap/Landlock sandboxing is backlog item B-SANDBOX; the container used for development lacks unprivileged user namespaces, so it cannot be tested here yet.
+`run_shell` runs `bash -c` in the workspace with a scrubbed environment, empty stdin, own process group, timeout, and bounded output. By default it is not an OS sandbox: an approved command can touch anything the user can. `--sandbox auto|required` wraps commands in bubblewrap (read-only host, writable workspace, hidden home, no network); that is Linux-only and needs unprivileged user namespaces, so it is not the default. Sandbox tests run on CI's Linux runners and are skipped where bwrap cannot start.
 
 ### D6 Sessions are whole-file JSON, rewritten atomically each turn
 
@@ -72,3 +72,10 @@ The adapter marks the system prompt and the final message block with `cache_cont
 ### D9 MCP tools are "execute" and user-configured only
 
 MCP servers come only from the user config file, never from the workspace. That avoids the "repo config runs code" class of problems seen in other agents (see `docs/research.md`). An MCP tool's effect cannot be known, so all of them are treated as `execute`. The client is synchronous: newline-delimited JSON-RPC over stdio, with a reader thread and per-request timeouts. A server that fails to start is reported and skipped, not fatal. Only `tools/list` and `tools/call` are implemented.
+
+### D10 File contents change through file tools; the prompt steers, code reports
+
+Diffs in the UI, the `.git/` write guard, and `undo` checkpoints all hang off `write_file`/`edit_file`. A shell command can still change any file, and the policy cannot tell a test run from `sed -i`. Two layers handle this, with no attempt to parse shell commands:
+- The system prompt tells the model to change file contents only with the file tools, and to use the shell for deletes, moves, and commands the user names. Measured on SWE-bench seed 1 with sonnet, source edits through the shell fell from 9/20 runs to 3/20 with no change in resolved count (docs/progress.md). A stricter wording made the model refuse an explicit `rm`, so the rule is deliberately narrow.
+- `undo` says how many shell commands ran during the prompt it reverts, so the user knows to check `git status`.
+
