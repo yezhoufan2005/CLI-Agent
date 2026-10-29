@@ -372,3 +372,14 @@ def test_resume_rejects_bad_ids_and_files_cleanly(tmp_path: Path) -> None:
         assert message in r.stderr and "Traceback" not in r.stderr, (arg, r.stderr)
     r = run_cli(tmp_path, [{"text": "x"}], "--resume", "2", "--continue", "go")
     assert r.returncode == 2 and "not allowed with" in r.stderr
+
+
+def test_queued_typeahead_follows_the_live_paste_rule(monkeypatch: pytest.MonkeyPatch) -> None:
+    from cli_agent.cli import _read_prompt
+
+    queued = ["Here is the issue:", "/mode auto", "please fix it"]
+    assert _read_prompt(queued) == ("Here is the issue:\n/mode auto\nplease fix it", False)
+    assert queued == []
+    queued = ["/mode read-only", "write g"]
+    assert _read_prompt(queued) == ("/mode read-only", False)
+    assert _read_prompt(queued) == ("write g", False)

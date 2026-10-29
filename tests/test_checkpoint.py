@@ -237,3 +237,17 @@ def test_held_lock_fails_fast_and_the_write_still_happens(tmp_path: Path) -> Non
     WriteFile().run({"path": "b.txt", "content": "b"}, ctx)  # lock released: recorded again
     report = cps.undo()
     assert report is not None and report.deleted == ["b.txt"]
+
+
+def test_shell_only_prompts_are_evicted_before_file_changes(tmp_path: Path) -> None:
+    from cli_agent.checkpoint import MAX_CHECKPOINTS
+
+    ctx, cps = setup(tmp_path)
+    cps.begin("edit app")
+    WriteFile().run({"path": "app.py", "content": "x"}, ctx)
+    for i in range(MAX_CHECKPOINTS + 5):
+        cps.begin(f"shell {i}")
+        cps.note_shell()
+    cps.begin("last")
+    labels = [cp["label"] for cp in cps._load()]
+    assert len(labels) == MAX_CHECKPOINTS and labels[0] == "edit app"

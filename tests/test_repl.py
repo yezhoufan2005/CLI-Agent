@@ -285,3 +285,22 @@ def test_sessions_list_and_resume_inside_the_repl(tmp_path: Path) -> None:
     texts = [m["content"][0].get("text") for m in json.loads(first.read_text())["messages"]]
     assert "continue there" in texts
     assert len(list((tmp_path / "state/cli-agent/sessions").glob("*.json"))) == 1
+
+
+def test_partly_typed_answer_does_not_carry_into_the_approval(tmp_path: Path) -> None:
+    script = [
+        {"tool_calls": [{"name": "run_shell", "input": {"command": "sleep 2"}}]},
+        {"tool_calls": [{"name": "run_shell", "input": {"command": "touch pwned"}}]},
+        {"text": "finished"},
+    ]
+    t = Term(tmp_path, script, "--allow", "run_shell:sleep 2")
+    t.expect("Type /exit")
+    t.send("go")
+    t.expect("sleep 2")
+    os.write(t.master, b"y")  # no Enter: stays in the terminal's line buffer
+    t.expect("[y]es")
+    t.send("")  # Enter alone means no
+    t.expect("finished")
+    t.send("/exit")
+    assert t.close() == 0
+    assert not (tmp_path / "work/pwned").exists()

@@ -93,6 +93,7 @@ class Checkpoints:
         """Id of the checkpoint this process is recording into."""
         self._shell = 0
         """Shell commands in the current prompt; saved on the first and by `finish`."""
+        self._shell_saved = 0.0
 
     def begin(self, label: str) -> None:
         cid = secrets.token_hex(8)
@@ -112,7 +113,7 @@ class Checkpoints:
                     "files": {},
                 }
             )
-            del stack[:-MAX_CHECKPOINTS]
+            _trim(stack)
 
         self._update(add)
 
@@ -129,7 +130,7 @@ class Checkpoints:
             if cp is None:  # evicted by other processes meanwhile; start again
                 cp = {"id": self._current, "label": "(continued)", "files": {}}
                 stack.append(cp)
-                del stack[:-MAX_CHECKPOINTS]
+                _trim(stack)
             entry = cp["files"].get(rel)
             if entry:
                 original = entry["original"]
@@ -146,16 +147,18 @@ class Checkpoints:
         if self._current is None:
             return
         self._shell += 1
-        if self._shell == 1:
+        # Also save now and then, so a killed process (SIGHUP) mostly keeps its count.
+        if self._shell == 1 or time.monotonic() - self._shell_saved >= 1.0:
             self._save_shell()
 
     def finish(self) -> None:
         """End of the prompt's run: persist the shell-command count."""
-        if self._current is not None and self._shell > 1:
+        if self._current is not None and self._shell > 1:  # may already be saved; harmless
             self._save_shell()
 
     def _save_shell(self) -> None:
         count = self._shell
+        self._shell_saved = time.monotonic()
 
         def add(stack: list[dict[str, Any]]) -> None:
             cp = next((c for c in stack if c.get("id") == self._current), None)
@@ -254,6 +257,14 @@ class Checkpoints:
             os.fchmod(fh.fileno(), 0o600)
             json.dump({"version": FORMAT_VERSION, "checkpoints": stack}, fh)
         os.replace(tmp, self.path)
+
+
+def _trim(stack: list[dict[str, Any]]) -> None:
+    """Enforce MAX_CHECKPOINTS. Prompts that only ran shell commands go first,
+    oldest first, so they can't push real file changes out of reach of undo."""
+    while len(stack) > MAX_CHECKPOINTS:
+        shell_only = [i for i, cp in enumerate(stack[:-1]) if not cp["files"]]
+        del stack[shell_only[0] if shell_only else 0]
 
 
 def _owner_alive(cp: dict[str, Any]) -> bool:

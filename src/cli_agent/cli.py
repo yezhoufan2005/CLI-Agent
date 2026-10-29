@@ -535,9 +535,10 @@ def _read_prompt(queued: list[str]) -> tuple[str, bool]:
         print(f"› {first}", file=sys.stderr)
         if first.lstrip().startswith("/"):
             return first.strip(), False
-        lines = [first]
-        while queued and not queued[0].lstrip().startswith("/"):
-            lines.append(queued.pop(0))
+        # Same rule as live input: after a non-command line, everything else that
+        # was waiting is part of the same prompt (a `/` line in a paste is text).
+        lines = [first, *queued]
+        queued.clear()
         return "\n".join(lines).strip(), False
     first = input("› ")
     # Lines typed ahead while the agent was busy are waiting too; a command must
@@ -594,6 +595,7 @@ def _repl(
             print(file=sys.stderr)
             return EXIT_OK
         except KeyboardInterrupt:
+            queued.clear()  # Ctrl-C drops typed-ahead input, as the terminal does
             print(file=sys.stderr)
             continue
         if not line:
@@ -653,6 +655,8 @@ def _repl(
             print(f"unknown command {line}; /help lists commands", file=sys.stderr)
             continue
         result = agent.run(session, line)
+        if result.status == "interrupted":
+            queued.clear()
         if result.status != "done":
             _err(f"{result.status}: {result.error}")
 
