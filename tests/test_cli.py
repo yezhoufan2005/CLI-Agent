@@ -396,3 +396,28 @@ def test_typed_ahead_mode_lines_only_tighten() -> None:
     queued = ["issue text:", "/mode auto", "fix it"]
     _apply_typeahead_modes(queued, policy)
     assert policy.mode == "read-only" and queued == ["issue text:", "fix it"]
+
+
+def test_leading_typed_ahead_loosening_mode_is_not_applied() -> None:
+    from cli_agent.cli import _apply_typeahead_modes
+    from cli_agent.permissions import PermissionPolicy
+
+    for queued in (["/mode auto", "rm -rf build"], ["/undo", "/mode auto", "rm -rf build"]):
+        policy = PermissionPolicy(mode="ask")
+        _apply_typeahead_modes(queued, policy)
+        assert policy.mode == "ask" and "/mode auto" not in queued
+
+
+def test_continue_skips_a_session_file_naming_another_id(tmp_path: Path) -> None:
+    r1 = run_cli(tmp_path, [{"text": "first"}], "--json", "one")
+    sid = json.loads(r1.stdout.splitlines()[-1])["session_id"]
+    sessions = tmp_path / "state/cli-agent/sessions"
+    copy = json.loads((sessions / f"{sid}.json").read_text())
+    copy["title"] = "the copy"
+    copy["updated"] = "9999-01-01T00:00:00+00:00"  # would be picked as the latest
+    (sessions / "20991231-000000-ffffff.json").write_text(json.dumps(copy))
+    r = run_cli(tmp_path, [{"text": "second"}], "--continue", "--json", "two")
+    assert r.returncode == 0, r.stderr
+    assert json.loads((sessions / f"{sid}.json").read_text())["title"] != "the copy"
+    listed = run_cli(tmp_path, [], "sessions").stdout
+    assert listed.count(sid) == 1

@@ -276,16 +276,20 @@ class Checkpoints:
 
 
 def _trim(stack: list[dict[str, Any]]) -> None:
-    """Enforce MAX_CHECKPOINTS. Prompts that only ran shell commands go first,
-    oldest first, so they can't push real file changes out of reach of undo."""
-    while len(stack) > MAX_CHECKPOINTS:
-        shell_only = [i for i, cp in enumerate(stack[:-1]) if not cp["files"]]
-        with_files = [i for i, cp in enumerate(stack) if cp["files"]]
-        # Keep the newest shell-only prompt after the last file change, so undo
-        # still reports it instead of silently going back past it.
-        if shell_only and (not with_files or shell_only[-1] > with_files[-1]):
-            shell_only.pop()
-        del stack[shell_only[0] if shell_only else 0]
+    """Enforce MAX_CHECKPOINTS on checkpoints that hold something. Empty ones
+    (the prompt just begun, or another live process's) don't count, so they
+    can't push real file changes out of reach of undo. Prompts that only ran
+    shell commands hold no data and go first, oldest first."""
+
+    def held(cp: dict[str, Any]) -> bool:
+        return bool(cp["files"]) or shell_count(cp) > 0
+
+    while sum(held(cp) for cp in stack) > MAX_CHECKPOINTS:
+        shell_only = [i for i, cp in enumerate(stack) if not cp["files"] and held(cp)]
+        if shell_only:
+            del stack[shell_only[0]]
+        else:
+            del stack[next(i for i, cp in enumerate(stack) if held(cp))]
 
 
 def _owner_alive(cp: dict[str, Any]) -> bool:

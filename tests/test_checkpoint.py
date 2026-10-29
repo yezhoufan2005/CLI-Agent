@@ -250,7 +250,8 @@ def test_shell_only_prompts_are_evicted_before_file_changes(tmp_path: Path) -> N
         cps.note_shell()
     cps.begin("last")
     labels = [cp["label"] for cp in cps._load()]
-    assert len(labels) == MAX_CHECKPOINTS and labels[0] == "edit app"
+    assert labels[0] == "edit app" and labels[-1] == "last"
+    assert len(labels) == MAX_CHECKPOINTS + 1  # the empty current one doesn't count
 
 
 def test_newest_shell_only_prompt_survives_the_cap(tmp_path: Path) -> None:
@@ -292,3 +293,28 @@ def test_failed_undo_keeps_what_it_could_not_revert(tmp_path: Path) -> None:
     report = cps.undo()  # the retry finishes the same prompt
     assert report is not None and report.label == "p" and report.restored == ["sub/b.txt"]
     assert (ctx.root / "sub/b.txt").read_text() == "B0"
+
+
+def test_full_stack_of_file_changes_keeps_all_of_them(tmp_path: Path) -> None:
+    import subprocess
+
+    from cli_agent.checkpoint import MAX_CHECKPOINTS
+
+    ctx, cps = setup(tmp_path)
+    for i in range(MAX_CHECKPOINTS):
+        cps.begin(f"F{i}")
+        WriteFile().run({"path": f"f{i}.txt", "content": "x"}, ctx)
+    cps.begin("S")
+    cps.note_shell()
+    other = subprocess.Popen(["sleep", "30"])  # a live process with an empty checkpoint
+    try:
+        data = json.loads(cps.path.read_text())
+        data["checkpoints"].append({"id": "e1", "owner": other.pid, "label": "E1", "files": {}})
+        cps.path.write_text(json.dumps(data))
+        cps.begin("E99")
+        labels = [cp["label"] for cp in cps._load()]
+    finally:
+        other.kill()
+        other.wait()
+    assert [f"F{i}" for i in range(MAX_CHECKPOINTS)] == [x for x in labels if x.startswith("F")]
+    assert "S" not in labels and labels[-2:] == ["E1", "E99"]
