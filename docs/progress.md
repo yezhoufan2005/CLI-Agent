@@ -2,6 +2,21 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — 0.7.0 released; nothing further worth doing for now
+
+- https://github.com/yezhoufan2005/CLI-Agent/releases/tag/v0.7.0 was built from 863ebd6 after `main` CI passed. The `release` and `pypi` jobs both succeeded.
+- Verified (manual): `sha256sum -c` ok. A clean-venv `uv pip install cli-agent-yzf==0.7.0` reports `cli-agent 0.7.0`, and `doctor` shows the default model `claude-sonnet-5-5` replying. The PyPI index lagged the upload by about a minute; the first install attempt found no 0.7.0.
+- What was checked this session for further work:
+  - open issues: none.
+  - real-model E2E: 11/11 on sonnet-4-6, haiku-4-5 and sonnet-5-5.
+  - dependency advisories: fixed in #80.
+  - upstream model/API changes: default updated in #82; the adapter sends nothing the 5.x models reject.
+  - clean install from the release and from PyPI: works.
+  - test-suite warnings: fixed in #81.
+  - backlog: B-HAIKU-COST dropped; B-COMPACT has no evidence of need.
+- Conclusion: no remaining candidate has value above its cost. Known limitations stay recorded: the `/undo` Ctrl-C test is Linux-only because libedit drops typed input on macOS CI, and a hand-deleted session lock file lets a second process in.
+- What would make more work worthwhile: a reported bug or user request; an E2E or benchmark failure on a new model; a session that hits the context budget despite elision (→ B-COMPACT); or an owner decision on a new capability, such as a sandbox that works in containers or another provider.
+
 ## 2026-10-29 — Release 0.7.0 gate evidence
 
 | Gate | Evidence |
