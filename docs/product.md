@@ -62,6 +62,7 @@ Each criterion names its verification. "CI" = automated test in `tests/` run by 
 - AC-R2 Shell commands time out, and the whole process group is killed. (CI)
 - AC-R3 Tool output is bounded (head+tail truncation); a tool exception becomes an error result, not a crash. (CI)
 - AC-R4 Session history is saved after every turn atomically; an interrupted tool call is recorded so the resumed history is API-valid. (CI)
+- AC-R6 Two cli-agent processes never write the same session: `--resume`, `--continue` and `/resume` refuse a session open in another live process (flock on `sessions/ID.lock`); if the lock can't be taken, the run continues with a notice. Known limitation: deleting a held lock file by hand lets a second process in. (CI: `test_a_session_open_elsewhere_is_not_resumed`, `test_resume_refuses_a_session_open_in_another_process`, lock unit tests)
 - AC-R5 Long sessions stay within a context budget by eliding the oldest tool output, without the model losing facts it noted. (CI: unit; E2E: `long-context` task)
 - AC-R6 Turn limit and `max_tokens` stops are reported with distinct exit code 3. (CI)
 

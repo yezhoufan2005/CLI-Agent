@@ -133,8 +133,7 @@ class SessionStore:
         for _ in range(5):
             try:
                 self.dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-                # flock needs no write access, so a read-only lock file still works.
-                fd = os.open(lock, os.O_RDONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+                fd = self._open_lock(lock)
             except OSError as err:
                 return self._no_lock(session_id, err)
             try:
@@ -159,6 +158,16 @@ class SessionStore:
             os.close(fd)  # locked a file that was replaced meanwhile; take the new one
         return self._no_lock(session_id, OSError("the lock file keeps changing"))
 
+    @staticmethod
+    def _open_lock(lock: Path) -> int:
+        flags = os.O_CREAT | os.O_NOFOLLOW
+        try:
+            # Read-write: Linux NFS emulates flock with fcntl locks, which need it.
+            return os.open(lock, os.O_RDWR | flags, 0o600)
+        except PermissionError:
+            # A read-only lock file (e.g. restored from a backup); local flock works.
+            return os.open(lock, os.O_RDONLY | flags, 0o600)
+
     def _no_lock(self, session_id: str, err: OSError) -> str:
         log.event("session_lock_error", error=str(err)[:300])
         return (
@@ -171,9 +180,14 @@ class SessionStore:
         if fd is None:
             return
         # Unlink while still holding the lock: a process that opened the old file
-        # meanwhile sees a different inode after locking it and starts over.
+        # meanwhile sees a different inode after locking it and starts over. Only
+        # our own file: if it was removed and another process locked a new one,
+        # deleting that would let a third process in.
+        lock = self.path(session_id).with_suffix(".lock")
         with contextlib.suppress(OSError):
-            os.unlink(self.path(session_id).with_suffix(".lock"))
+            held, current = os.fstat(fd), os.stat(lock, follow_symlinks=False)
+            if (held.st_dev, held.st_ino) == (current.st_dev, current.st_ino):
+                os.unlink(lock)
         os.close(fd)
 
     def release_all(self) -> None:

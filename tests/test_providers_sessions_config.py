@@ -301,3 +301,15 @@ def test_session_lock_problem_is_a_warning_not_an_error(tmp_path: Path) -> None:
     (tmp_path / "sessions" / "abc.lock").mkdir()
     warning = SessionStore(tmp_path).claim("abc")
     assert "could not lock session abc" in warning
+
+
+def test_release_does_not_remove_another_holders_lock_file(tmp_path: Path) -> None:
+    from cli_agent.session import SessionBusy
+
+    first, second = SessionStore(tmp_path), SessionStore(tmp_path)
+    first.claim("abc")
+    (tmp_path / "sessions" / "abc.lock").unlink()  # e.g. a cleanup script
+    second.claim("abc")  # known limitation: the removed lock no longer excludes
+    first.release("abc")
+    with pytest.raises(SessionBusy):  # but the second holder's lock still does
+        SessionStore(tmp_path).claim("abc")

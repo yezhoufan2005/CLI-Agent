@@ -8,6 +8,7 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 - Releases are published to PyPI as `cli-agent-yzf` (`uv tool install cli-agent-yzf`); the name `cli-agent` is taken there. The command, module, and config/session directories are still `cli-agent`. Release wheels are now named `cli_agent_yzf-X.Y.Z-py3-none-any.whl`.
 
 ### Fixed
+- Two cli-agent processes on the same session (e.g. `--continue` in two terminals, or `/resume` of a session still open elsewhere) overwrote each other's turns. `--resume`, `--continue` and `/resume` now refuse a session that another running cli-agent has open (exit code 2 for the flags; the REPL stays in its current session). Each process holds a lock file `sessions/ID.lock` while it has the session open.
 - SIGTERM and SIGHUP (closing the terminal) now shut down like Ctrl-C: the running shell command is killed, the session is saved, and undo's shell-command count is written. The exit code is 128 + the signal number (143, 129). Before, the process died without cleanup. A second signal during that cleanup is ignored, `--json` runs still end with a `result` event, and MCP servers are all closed even if one fails.
 
 ## 0.5.0 — 2026-10-29
