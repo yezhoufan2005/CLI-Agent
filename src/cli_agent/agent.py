@@ -99,6 +99,7 @@ class Agent:
         """Process one user prompt until the model stops calling tools."""
         if session.repair():
             self.ui.on_notice("previous run was interrupted; recorded unfinished tool calls")
+        _drop_pending_continue(session)
         session.add_user_text(prompt)
         self.save(session)
         if self.ctx.checkpoints is not None:
@@ -106,6 +107,7 @@ class Agent:
         turns = 0
         shrinks = 0
         continuations = 0
+        continued = ""  # text of earlier replies in a run of max_tokens continuations
         last_text = ""
         try:
             while True:
@@ -159,7 +161,7 @@ class Agent:
                 self.save(session)
                 text = msg.text()
                 if text:
-                    last_text = text
+                    last_text = continued + text
                     self.ui.on_text(text)
                 calls = msg.tool_uses()
                 if not calls:
@@ -168,6 +170,7 @@ class Agent:
                         # task; ask the model to carry on, a bounded number of times.
                         if continuations < MAX_CONTINUATIONS:
                             continuations += 1
+                            continued = last_text
                             log.event("continue_after_max_tokens", turn=turns)
                             session.add_user_text(CONTINUE_PROMPT)
                             self.save(session)
@@ -177,6 +180,7 @@ class Agent:
                         return RunResult("refusal", last_text, turns, "model refused")
                     return RunResult("done", last_text, turns)
                 continuations = 0
+                continued = ""
                 results = [self._execute(call) for call in calls]
                 session.messages.append(Message(role="user", content=list(results)))
                 self.save(session)
@@ -282,6 +286,24 @@ _OVERFLOW_HINTS = (
 
 
 MAX_SHRINKS = 4
+
+
+def _drop_pending_continue(session: Session) -> None:
+    """A continue prompt left by an interrupted or failed run is stale: the user
+    has moved on, and their new prompt must not be merged into it."""
+    if not session.messages or session.messages[-1].role != "user":
+        return
+    last = session.messages[-1]
+    if (
+        last.content
+        and isinstance(last.content[-1], TextBlock)
+        and (last.content[-1].text == CONTINUE_PROMPT)
+    ):
+        last.content.pop()
+        if not last.content:
+            session.messages.pop()
+
+
 MAX_CONTINUATIONS = 3
 CONTINUE_PROMPT = (
     "[Your previous reply was cut off at the output token limit. Continue from where you "

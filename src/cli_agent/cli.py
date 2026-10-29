@@ -239,11 +239,16 @@ def environment_checks(cfg: Config) -> list[str]:
         lines.append(f"{mark} shell sandbox unavailable: {reason} (configured: {cfg.sandbox})")
     for server in cfg.mcp_servers:
         exe = server.command[0]
-        ok = shutil.which(exe) or Path(exe).is_file()
+        # Resolve the way the server will be started: from the neutral MCP cwd.
+        if "/" in exe:
+            target = Path(exe) if Path(exe).is_absolute() else state / "mcp-cwd" / exe
+            ok = target.is_file() and os.access(target, os.X_OK)
+        else:
+            ok = shutil.which(exe) is not None
         lines.append(
             f"✓ MCP server {server.name}: {exe}"
             if ok
-            else f"✗ MCP server {server.name}: command {exe!r} not found"
+            else f"✗ MCP server {server.name}: command {exe!r} not found or not executable"
         )
     return lines
 
@@ -254,6 +259,8 @@ def cmd_doctor(cfg: Config) -> int:
     print("config: " + json.dumps(cfg.redacted()))
     for line in environment_checks(cfg):
         print(line)
+        if line.startswith("✗"):
+            ok = False
     if cfg.provider == "anthropic" and not (cfg.api_key or cfg.auth_token):
         print("✗ no credentials: set ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN for a proxy)")
         return EXIT_ERROR

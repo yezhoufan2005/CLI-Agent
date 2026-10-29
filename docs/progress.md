@@ -2,6 +2,24 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Fourth independent review: fixes (PR #42)
+
+A reviewer agent checked the code changed since d94e5b6 and reproduced 9 findings. Status:
+
+| # | Sev | Finding | Status |
+|---|---|---|---|
+| 1 | med | The fuzzy edit split on all `str.splitlines` separators and rewrote form feeds and similar characters as `\n` | fixed: splits on `\n` only, and refuses windows containing `\r`, VT, FF, NEL, LS or PS (CI) |
+| 2 | med | The stream deadline capped total time, so long but healthy streams were cut and retried | fixed: it is now an idle deadline (300 s) that content lines reset and pings don't (CI) |
+| 3 | med-low | A continue prompt from a failed or interrupted run was merged into the user's next prompt | fixed: a trailing stale continue prompt is dropped before adding the new prompt (CI) |
+| 4 | low | doctor exited 0 despite ✗ checks | fixed |
+| 5 | low | doctor's MCP check ignored the real cwd and the executable bit | fixed: it resolves the command against `mcp-cwd` and checks `X_OK` |
+| 6 | low | CR-only files got mixed line endings | fixed by #1: such windows are refused (CI) |
+| 7 | low | A failed fuzzy match took 7–35 s on large files | fixed: windows are anchored on the first non-blank line using pre-stripped lines (CI: <2 s on 50k lines) |
+| 8 | low | `final_text` lost the earlier parts of a continued reply | fixed: continued text is concatenated (CI) |
+| 9 | low | A fuzzy edit that changes nothing reported success | fixed: raises "would not change the file" (CI) |
+
+Not acted on (unverified): `model_context_window_exceeded` maps to `max_tokens` and may trigger continuations into a full context. That is bounded by MAX_CONTINUATIONS=3.
+
 ## 2026-10-29 — SWE-bench rerun after fixes; CI on 3.14 (PRs #36–#40)
 
 - Full rerun of the same 20 SWE-bench Lite sympy instances (seed 1) on main after the max_tokens continuation fix (#36), the whitespace-tolerant edit fallback (#38) and the stream deadline (#39). Reports: `docs/bench/swebench-lite-sympy-seed1-*-v2.json`.
