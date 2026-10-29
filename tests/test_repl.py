@@ -1,6 +1,7 @@
 """Drive the interactive REPL through a pseudo-terminal, as a user would."""
 
 import fcntl
+import hashlib
 import json
 import os
 import pty
@@ -338,3 +339,22 @@ def test_sighup_kills_the_command_and_keeps_undo_count(tmp_path: Path) -> None:
     assert "ran 3 shell command(s)" in r.stdout, r.stdout + r.stderr
     (saved,) = (tmp_path / "state/cli-agent/sessions").glob("*.json")
     assert json.loads(saved.read_text())["messages"]  # the session was saved
+
+
+def test_ctrl_c_during_undo_lock_wait_keeps_the_repl(tmp_path: Path) -> None:
+    t = Term(tmp_path, [{"text": "still here"}])
+    t.expect("Type /exit")
+    work = (tmp_path / "work").resolve()
+    key = hashlib.sha256(os.fsencode(work)).hexdigest()[:16]
+    lock = tmp_path / "state" / "cli-agent" / "checkpoints" / f"{key}.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock, "w") as held:
+        fcntl.flock(held, fcntl.LOCK_EX)  # another session holds the checkpoints
+        t.send("/undo")
+        time.sleep(1)
+        os.write(t.master, b"\x03")  # Ctrl-C
+        t.expect("undo cancelled")
+    t.send("hello")
+    t.expect("still here")
+    t.send("/exit")
+    assert t.close() == 0

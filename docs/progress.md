@@ -2,6 +2,12 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Run 1, session 3: Ctrl-C during `/undo` lock wait (PR #73)
+
+- Confirmed the session-2 suspicion: Ctrl-C while `/undo` waited (up to 10 s) for another session's checkpoint lock left the REPL with exit 130. Now it prints "undo cancelled" and the REPL continues; SIGTERM/SIGHUP still exit. CI: `test_ctrl_c_during_undo_lock_wait_keeps_the_repl` (fails without the change; checked).
+- Checked the PR #72 suspicion (dangling tool_use on disk after a second signal): not a defect. `Agent.run` calls `Session.repair` before every request, and it is the only code that sends history to the provider (the `doctor` ping uses a fresh message); covered by `test_session_repair_on_resume`.
+- Still open: two REPLs on one session overwrite each other. Next: B-HAIKU-COST.
+
 ## 2026-10-29 — Tenth (focused) review of #71: fixes (PR #72)
 
 | # | Sev | Finding | Status |

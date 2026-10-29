@@ -682,7 +682,14 @@ def _repl(
             continue
         if line == "/undo":
             if agent.ctx.checkpoints is not None:
-                cmd_undo(agent.ctx.checkpoints)
+                try:
+                    cmd_undo(agent.ctx.checkpoints)
+                except Terminated:
+                    raise
+                except KeyboardInterrupt:
+                    # Ctrl-C while waiting for another session's lock cancels the undo,
+                    # not the REPL.
+                    print("\nundo cancelled", file=sys.stderr)
             continue
         if line == "/sessions" and store is not None:
             _list_workspace_sessions(store, session)
