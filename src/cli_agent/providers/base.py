@@ -85,21 +85,25 @@ def with_retries(
 STREAM_IDLE = 300.0
 
 
-def with_deadline(lines: Iterator[str], seconds: float = STREAM_IDLE) -> Iterator[str]:
+def with_deadline(
+    lines: Iterator[str],
+    seconds: float = STREAM_IDLE,
+    clock: Callable[[], float] = time.monotonic,
+) -> Iterator[str]:
     """Fail a stream that sends no content for `seconds`. httpx timeouts apply
     per read, so a server sending only keepalives (pings, SSE comments) would
     otherwise never time out. Content lines reset the clock, so a long but
     steadily progressing response is never cut."""
-    end = time.monotonic() + seconds
+    end = clock() + seconds
     for line in lines:
-        if time.monotonic() > end:
+        if clock() > end:
             raise ProviderError(f"stream sent no content for {seconds:g}s", retryable=True)
         if (
             line.startswith("data:")
             and '"type": "ping"' not in line
             and '"type":"ping"' not in line
         ):
-            end = time.monotonic() + seconds
+            end = clock() + seconds
         yield line
 
 

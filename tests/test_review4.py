@@ -44,17 +44,17 @@ def test_fuzzy_failed_match_is_fast() -> None:
 
 
 def test_deadline_resets_on_content_but_not_pings() -> None:
-    import time
+    # A fake clock that advances 1 s per call keeps this independent of CI speed.
+    ticks = itertools.count()
 
-    def slow_content():  # type: ignore[no-untyped-def]
-        for i in range(5):
-            time.sleep(0.03)
-            yield f'data: {{"type": "content_block_delta", "i": {i}}}'
+    def clock() -> float:
+        return float(next(ticks))
 
-    assert len(list(with_deadline(slow_content(), seconds=0.1))) == 5
+    content = [f'data: {{"type": "content_block_delta", "i": {i}}}' for i in range(20)]
+    assert len(list(with_deadline(iter(content), seconds=5, clock=clock))) == 20
     pings = itertools.repeat('data: {"type": "ping"}')
     with pytest.raises(ProviderError, match="no content"):
-        for _ in with_deadline(pings, seconds=0.05):
+        for _ in with_deadline(pings, seconds=5, clock=clock):
             pass
 
 
