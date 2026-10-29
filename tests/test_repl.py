@@ -167,3 +167,17 @@ def test_ctrl_c_cancels_running_tool_but_keeps_session(tmp_path: Path) -> None:
     assert t.close() == 0
     time.sleep(0.5)
     assert not (tmp_path / "work/late").exists(), "the cancelled command kept running"
+
+
+def test_multiline_paste_is_one_prompt(tmp_path: Path) -> None:
+    # A second prompt would exhaust the one-turn script and print an error.
+    t = Term(tmp_path, [{"text": "got both lines"}])
+    t.expect("Type /exit")
+    os.write(t.master, b"first line\nsecond line\n")
+    t.expect("got both lines")
+    t.send("/exit")
+    assert t.close() == 0
+    assert "exhausted" not in t.buf
+    (saved,) = (tmp_path / "state/cli-agent/sessions").glob("*.json")
+    first = json.loads(saved.read_text())["messages"][0]
+    assert first["content"][0]["text"] == "first line\nsecond line"

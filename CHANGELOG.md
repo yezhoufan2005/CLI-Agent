@@ -6,6 +6,7 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ### Added
 - `--resume` accepts a unique prefix of a session id.
+- REPL: a multi-line paste is sent as one prompt instead of one prompt per line.
 
 ## 0.3.0 — 2026-10-29
 

@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import os
+import select
 import shutil
 import sys
 from pathlib import Path
@@ -495,6 +496,30 @@ def _finish(result: RunResult, session: Session, ui: TerminalUI | JsonUI) -> int
     return _STATUS_EXIT[result.status]
 
 
+PASTE_WAIT = 0.05
+
+
+def _input_pending() -> bool:
+    """True if more input is already waiting on stdin, as it is mid-paste."""
+    try:
+        ready, _, _ = select.select([sys.stdin], [], [], PASTE_WAIT)
+    except (OSError, ValueError):
+        return False
+    return bool(ready)
+
+
+def _read_prompt() -> str:
+    # A multi-line paste arrives all at once. Join the lines that are already
+    # waiting, so it becomes one prompt instead of one model run per line.
+    lines = [input("› ")]
+    while _input_pending():
+        try:
+            lines.append(input(""))
+        except EOFError:
+            break
+    return "\n".join(lines).strip()
+
+
 def _repl(agent: Agent, session: Session, ui: TerminalUI | JsonUI) -> int:
     try:
         import readline  # noqa: F401  - enables line editing for input()
@@ -507,7 +532,7 @@ def _repl(agent: Agent, session: Session, ui: TerminalUI | JsonUI) -> int:
     )
     while True:
         try:
-            line = input("› ").strip()
+            line = _read_prompt()
         except EOFError:
             print(file=sys.stderr)
             return EXIT_OK
