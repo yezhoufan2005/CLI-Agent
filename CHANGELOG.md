@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Fixed (lock timeout)
+- The undo-checkpoint lock waits at most 10 s. Before, a process holding it (for example a command the agent started that inherited it) hung every file tool until Ctrl-C. Now the write still happens and the result says undo will not cover it; `undo` itself fails with exit 1 and a clear message.
+
 ### Fixed (sixth review)
 - In the REPL, input typed before an approval question (for example `/mode read-only` while a command runs) is kept and handled at the next prompt instead of being thrown away; it still never answers the question. One-shot runs drop it and say what was dropped.
 - `undo` on a prompt that changed files only through shell commands now says so and stops, instead of saying "nothing to undo" or silently reverting an older prompt.

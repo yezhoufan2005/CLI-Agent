@@ -209,3 +209,31 @@ def test_shell_count_written_once_until_finish(tmp_path: Path) -> None:
     assert cps._load()[-1]["shell"] == 1
     cps.finish()
     assert cps._load()[-1]["shell"] == 3
+
+
+def test_held_lock_fails_fast_and_the_write_still_happens(tmp_path: Path) -> None:
+    import fcntl
+    import os
+    import time
+
+    import cli_agent.checkpoint as checkpoint
+
+    ctx, cps = setup(tmp_path)
+    cps.begin("p")
+    fd = os.open(cps.path.with_suffix(".lock"), os.O_WRONLY)
+    fcntl.flock(fd, fcntl.LOCK_EX)  # another process holding the lock
+    old_timeout = checkpoint.LOCK_TIMEOUT
+    checkpoint.LOCK_TIMEOUT = 0.3
+    try:
+        start = time.monotonic()
+        result = WriteFile().run({"path": "a.txt", "content": "a"}, ctx)
+        assert time.monotonic() - start < 3
+        assert (ctx.root / "a.txt").read_text() == "a"
+        assert not result.is_error and "undo will not cover it" in result.content
+        assert "locked by another process" in result.content
+    finally:
+        checkpoint.LOCK_TIMEOUT = old_timeout
+        os.close(fd)
+    WriteFile().run({"path": "b.txt", "content": "b"}, ctx)  # lock released: recorded again
+    report = cps.undo()
+    assert report is not None and report.deleted == ["b.txt"]
