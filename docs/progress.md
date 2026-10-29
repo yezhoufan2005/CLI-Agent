@@ -2,6 +2,14 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — File changes only through file tools (PR #57)
+
+- Observation from the kept SWE-bench transcripts: in 9 of 20 seed-1 sonnet runs the agent edited library source through `run_shell` (python heredocs with `open(p,'w')`, `sed -i`). Those changes bypass the diff display, the `.git/` write guard's file-tool path, and `undo` checkpoints.
+- Change: the system prompt says to change file *contents* only with `edit_file`/`write_file`, and to use `run_shell` for deleting/moving files or when the user asks for a specific command. `undo` now says how many shell commands ran in the prompt it reverts (their changes are not tracked).
+- First wording ("never through run_shell") made sonnet refuse `rm app.py` in the `denied-action` E2E task (1 FAIL in 2 suite runs; it explained the rule instead of trying the command). The narrowed wording passed that task 3/3.
+- Measured, sonnet seed 1 (same 20 instances): shell source edits in 9/20 runs before, 3/20 after (narrowed wording; 1/20 with the first wording). Resolved 15/20 in both, so no capability cost. E2E with the final wording: sonnet `pass=11 fail=0`, haiku `pass=11 fail=0`. Report: `docs/bench/swebench-lite-sympy-seed1-claude-sonnet-4-6-v4.json`.
+- CI: `test_undo_reports_shell_commands_it_cannot_revert`, `test_undo_mentions_shell_commands`.
+
 ## 2026-10-29 — 0.4.0 released; approval typeahead (PR #56)
 
 - https://github.com/yezhoufan2005/CLI-Agent/releases/tag/v0.4.0 was built by the release workflow from 8eb6eae after `main` CI passed. Verified: downloaded the assets, `sha256sum -c` ok, clean-venv install reports `cli-agent 0.4.0`.

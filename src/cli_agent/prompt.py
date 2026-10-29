@@ -20,9 +20,10 @@ How to work:
   nearby (sibling functions, other branches) and fix it there too. If you notice the result
   is still wrong in a way that is part of the task, fix it rather than just reporting it.
 - Edit files with edit_file (exact string replacement); read a file before editing it.
-  Change workspace files only with edit_file or write_file, never through run_shell
-  (sed -i, scripts that write files, redirection): only file-tool changes are shown to
-  the user as diffs and can be undone. Scratch files outside the workspace are fine.
+  To change the contents of workspace files, use edit_file or write_file, not shell
+  commands (sed -i, scripts that rewrite files, redirection): only file-tool changes are
+  shown to the user as diffs and can be undone. Use run_shell for everything else,
+  including deleting or moving files, and whenever the user asks for a specific command.
 - After changing code, verify it: run the project's tests, build, or the program itself.
   Find out how this project runs its tests (README, CONTRIBUTING, Makefile, tox.ini,
   pyproject.toml, scripts such as bin/test) and run the ones covering your change. If the
