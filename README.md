@@ -46,7 +46,7 @@ cli-agent sessions                                              # list saved ses
 cli-agent undo                                                  # revert file changes of the last prompt
 ```
 
-`cli-agent undo` (or `/undo` in a session) puts back the files the agent's file tools changed during the most recent prompt, and deletes files it created. Each further undo goes back one more prompt, up to 20. If you edited a file yourself after the agent wrote it, undo leaves that file alone. Changes made through shell commands are not tracked; use git for those.
+`cli-agent undo` (or `/undo` in a session) puts back the files the agent's file tools changed during the most recent prompt, and deletes files it created. Each further undo goes back one more prompt, up to 20. If you edited a file yourself after the agent wrote it, undo leaves that file alone. Changes made through shell commands are not tracked; undo tells you how many shell commands ran in that prompt, so check `git status` for those. The agent is instructed to change file contents only through its file tools, so most edits are covered.
 
 Exit codes: `0` done, `1` error (model/API failure, refusal), `2` usage/config error, `3` stopped incomplete (turn limit, output-token limit, or `--max-session-tokens` budget), `130` interrupted. An interrupted or failed session is saved and can be resumed with `--resume ID`.
 
@@ -64,7 +64,7 @@ When there is no terminal to ask on (stdin piped, `--json`), "ask" means "deny".
 Rules refine the mode: `--allow 'run_shell:pytest*'`, `--deny 'run_shell:git push*'`, or `allow = [...]` / `deny = [...]` in `~/.config/cli-agent/config.toml`. Deny rules win over allow rules.
 
 - Path rules match the path normalized relative to the workspace, so `src/../.env` is matched as `.env`.
-- A shell allow glob never matches a command line that contains shell metacharacters (`; & | $ ` < > ( )`, newlines). `run_shell:pytest*` allows `pytest -q tests/`, but `pytest; curl … | sh` still asks.
+- A shell allow glob never matches a command line that contains shell metacharacters (`; & | $ ` < > ( )`, newlines). `run_shell:pytest*` allows `pytest -q tests/`, but `pytest; curl … | sh` still asks. The same applies to harmless pipes such as `pytest -q | tail`; in a headless run the agent is told which rule nearly matched, so it can retry the plain command.
 - Shell deny rules are also checked against each simple command in a line (`cd x && git push` matches `git push*`). They are best-effort, not a security boundary.
 - "Always" for a shell command approves exactly that command line for the session.
 - Writes under `.git/` (hooks, config) always ask, even in `auto` and `auto-edit`, unless an explicit path rule such as `write_file:.git/info/*` allows them.
