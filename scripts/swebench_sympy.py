@@ -2,7 +2,7 @@
 """Run cli-agent on SWE-bench Lite instances from sympy/sympy, without Docker.
 
     uv run python scripts/swebench_sympy.py --data lite.parquet --repo SYMPY_CLONE \
-        [--n 20] [--seed 1] [-j 4] [--model M] [--gold] [--report out.json]
+        [--n 20] [--seed 1] [-j 4] [--model M] [--gold] [--report out.json] [--keep DIR]
 
 SymPy is pure Python (one dependency, mpmath), so each instance can run in a
 git worktree with a shared Python 3.9 venv, matching SWE-bench's sympy
@@ -126,6 +126,13 @@ def run_one(inst: dict, args: argparse.Namespace, python: Path, state: Path) -> 
                     if '"event": "result"' in line:
                         result = json.loads(line)
             secs = time.monotonic() - start
+            if args.keep and not args.gold:
+                # Event stream, stderr and the agent's diff, for failure analysis.
+                keep = args.keep / iid
+                keep.mkdir(parents=True, exist_ok=True)
+                (keep / "events.jsonl").write_text(agent.stdout)
+                (keep / "stderr.txt").write_text(agent.stderr)
+                (keep / "agent.diff").write_text(sh(["git", "diff", "HEAD"], work).stdout)
             # Discard any test edits the agent made, then apply the hidden tests.
             files = test_files(inst["test_patch"])
             sh(["git", "checkout", "-q", "HEAD", "--", *files], work)
@@ -170,6 +177,7 @@ def main() -> int:
     ap.add_argument("--gold", action="store_true")
     ap.add_argument("--ids", nargs="*", help="run exactly these instance ids")
     ap.add_argument("--report", type=Path)
+    ap.add_argument("--keep", type=Path, help="save each instance's events, stderr and diff here")
     args = ap.parse_args()
     import pyarrow.parquet as pq
 
