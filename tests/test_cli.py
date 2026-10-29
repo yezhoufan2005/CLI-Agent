@@ -253,9 +253,22 @@ def test_undo_subcommand(tmp_path: Path) -> None:
     assert r.returncode == 0 and (tmp_path / "work/made.txt").exists()
     r = run_cli(tmp_path, [], "undo")
     assert r.returncode == 0 and "deleted made.txt" in r.stdout
+    assert "shell command" not in r.stdout
     assert not (tmp_path / "work/made.txt").exists()
     r = run_cli(tmp_path, [], "undo")
     assert "nothing to undo" in r.stdout
+
+
+def test_undo_mentions_shell_commands(tmp_path: Path) -> None:
+    script = [
+        {"tool_calls": [{"name": "write_file", "input": {"path": "f.txt", "content": "x"}}]},
+        {"tool_calls": [{"name": "run_shell", "input": {"command": "echo y > g.txt"}}]},
+        {"text": "made"},
+    ]
+    assert run_cli(tmp_path, script, "--mode", "auto", "make files").returncode == 0
+    r = run_cli(tmp_path, [], "undo")
+    assert "deleted f.txt" in r.stdout
+    assert "1 shell command(s) also ran" in r.stdout
 
 
 def test_mcp_tool_used_end_to_end(tmp_path: Path) -> None:

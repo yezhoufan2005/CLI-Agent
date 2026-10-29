@@ -74,6 +74,8 @@ class RunShell:
             raise ToolError("timeout must be a positive number")
         timeout = min(float(timeout), MAX_TIMEOUT)
         env = scrubbed_env(ctx.env or dict(os.environ))
+        if ctx.checkpoints is not None:
+            ctx.checkpoints.note_shell()
         _enable_subreaper()
         before = _child_pids()
         # Spool output to a temp file so a chatty command can't exhaust memory via pipes.
