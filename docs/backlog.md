@@ -31,5 +31,5 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | B-SHELL-EDITS | P1 | done | Agent changes file contents through file tools, so diffs and undo cover them | Shell source edits 9/20 → 3/20 SWE-bench runs; E2E 11/11 |
 | B-LOCK-TIMEOUT | P2 | done | Checkpoint `flock` has no timeout; a stuck holder hangs file and shell tools until Ctrl-C | Test: a held lock makes the tool fail with a clear message within N s |
 | B-HAIKU-COST | P2 | todo | Haiku's input tokens rose ~50% with the 0.4.0 prompt (more turns, more scratch scripts) | Same SWE-bench seeds with equal or better resolved count and lower total input tokens |
-| B-SESSION-PICKER | P2 | todo | `/sessions` in the REPL and a numbered pick for `--resume` | CLI test |
+| B-SESSION-PICKER | P2 | done | `/sessions` and `/resume ID` in the REPL (a numbered pick was not added: unique id prefixes already work) | CI: `test_sessions_list_and_resume_inside_the_repl` |
 

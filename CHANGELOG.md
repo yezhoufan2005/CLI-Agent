@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Added
+- REPL: `/sessions` lists this workspace's sessions (the current one marked `*`), and `/resume ID` switches to one of them without restarting.
+
 ### Fixed (lock timeout)
 - The undo-checkpoint lock waits at most 10 s. Before, a process holding it (for example a command the agent started that inherited it) hung every file tool until Ctrl-C. Now the write still happens and the result says undo will not cover it; `undo` itself fails with exit 1 and a clear message.
 
