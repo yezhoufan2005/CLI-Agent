@@ -32,6 +32,12 @@ def _digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def shell_count(cp: dict[str, Any]) -> int:
+    """The checkpoint's shell-command count; 0 if missing or not a sane integer."""
+    v = cp.get("shell", 0)
+    return v if type(v) is int and 0 <= v < 1_000_000_000 else 0
+
+
 def _valid(stack: object) -> bool:
     if not isinstance(stack, list):
         return False
@@ -61,6 +67,10 @@ class UndoReport:
     shell_commands: int = 0
     """Shell commands run during the prompt; whatever they changed stays."""
 
+    @property
+    def files_changed(self) -> bool:
+        return bool(self.restored or self.deleted or self.skipped)
+
 
 class Checkpoints:
     """The file is the source of truth. Every change runs under an exclusive
@@ -72,16 +82,19 @@ class Checkpoints:
         self.root = root.resolve()
         self._current: str | None = None
         """Id of the checkpoint this process is recording into."""
+        self._shell = 0
+        """Shell commands in the current prompt; saved on the first and by `finish`."""
 
     def begin(self, label: str) -> None:
         cid = secrets.token_hex(8)
         self._current = cid
+        self._shell = 0
 
         def add(stack: list[dict[str, Any]]) -> None:
             # Prompts that changed nothing must not push real checkpoints out of the
             # cap. Another live process's empty checkpoint may still get files, so
             # only ours and those of exited processes are dropped.
-            stack[:] = [cp for cp in stack if cp["files"] or _owner_alive(cp)]
+            stack[:] = [cp for cp in stack if cp["files"] or shell_count(cp) or _owner_alive(cp)]
             stack.append(
                 {
                     "id": cid,
@@ -118,23 +131,37 @@ class Checkpoints:
         self._update(add)
 
     def note_shell(self) -> None:
-        """Count a shell command against the current prompt's checkpoint."""
+        """Count a shell command against the current prompt. Only the first one
+        is written at once (rewriting the file per command is slow when it holds
+        large originals); `finish` writes the final count."""
         if self._current is None:
             return
+        self._shell += 1
+        if self._shell == 1:
+            self._save_shell()
+
+    def finish(self) -> None:
+        """End of the prompt's run: persist the shell-command count."""
+        if self._current is not None and self._shell > 1:
+            self._save_shell()
+
+    def _save_shell(self) -> None:
+        count = self._shell
 
         def add(stack: list[dict[str, Any]]) -> None:
             cp = next((c for c in stack if c.get("id") == self._current), None)
             if cp is not None:
-                cp["shell"] = int(cp.get("shell", 0)) + 1
+                cp["shell"] = count
 
         self._update(add)
 
     def undo(self) -> UndoReport | None:
-        """Revert the most recent checkpoint that changed files; None if none."""
+        """Revert the most recent checkpoint that changed files or ran shell
+        commands; None if none."""
         found: list[dict[str, Any]] = []
 
         def take(stack: list[dict[str, Any]]) -> None:
-            while stack and not stack[-1]["files"]:
+            while stack and not stack[-1]["files"] and not shell_count(stack[-1]):
                 stack.pop()
             if stack:
                 found.append(stack.pop())
@@ -148,10 +175,7 @@ class Checkpoints:
             return self._revert(found[0])
 
     def _revert(self, cp: dict[str, Any]) -> UndoReport:
-        shell = cp.get("shell", 0)
-        report = UndoReport(
-            label=cp["label"], shell_commands=shell if isinstance(shell, int) else 0
-        )
+        report = UndoReport(label=cp["label"], shell_commands=shell_count(cp))
         for rel, entry in sorted(cp["files"].items()):
             target = self.root / rel
             # Never follow a symlink (the user may have swapped one in since) and

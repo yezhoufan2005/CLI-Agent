@@ -269,6 +269,14 @@ def test_undo_mentions_shell_commands(tmp_path: Path) -> None:
     r = run_cli(tmp_path, [], "undo")
     assert "deleted f.txt" in r.stdout
     assert "1 shell command(s) also ran" in r.stdout
+    script = [
+        {"tool_calls": [{"name": "run_shell", "input": {"command": "echo z > z.txt"}}]},
+        {"text": "done"},
+    ]
+    assert run_cli(tmp_path, script, "--mode", "auto", "shell only").returncode == 0
+    r = run_cli(tmp_path, [], "undo")
+    assert "changed no files through the file tools" in r.stdout
+    assert "ran 1 shell command(s)" in r.stdout
 
 
 def test_mcp_tool_used_end_to_end(tmp_path: Path) -> None:

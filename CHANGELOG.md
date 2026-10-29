@@ -4,6 +4,11 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Fixed (sixth review)
+- In the REPL, input typed before an approval question (for example `/mode read-only` while a command runs) is kept and handled at the next prompt instead of being thrown away; it still never answers the question. One-shot runs drop it and say what was dropped.
+- `undo` on a prompt that changed files only through shell commands now says so and stops, instead of saying "nothing to undo" or silently reverting an older prompt.
+- A failure to record the shell-command count (full disk, read-only state dir) no longer prevents the command from running; a tampered count is ignored. The count is written once per prompt instead of on every command.
+
 ### Fixed
 - In non-interactive runs, a call that needed approval was reported to the model as "the user declined". It now says nobody can approve in this run. When a shell allow rule (e.g. `run_shell:pytest*`) matched the start of a command but not the whole line because of a pipe or redirection, the model and the user are told so; the policy itself is unchanged.
 
