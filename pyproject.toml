@@ -64,3 +64,5 @@ testpaths = ["tests"]
 timeout = 60
 addopts = "-q"
 norecursedirs = ["tests/e2e"]
+# Warnings fail the suite, so leaks such as an unclosed pipe (ResourceWarning) surface.
+filterwarnings = ["error"]
