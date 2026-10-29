@@ -16,7 +16,7 @@ How work on this repository is selected, executed, verified, and recorded. Appli
 3. Write down the acceptance check before coding (a failing test where possible).
 4. Implement the smallest coherent change.
 5. Verify: `./scripts/check.sh` must pass. For behaviour that depends on a real model, also run `./scripts/e2e.sh` locally and record the result line.
-6. Challenge: for changes to permissions, path confinement, shell execution, config trust, or session persistence, get an independent review (a fresh reviewer agent given the diff and the relevant spec, not the author's rationale). Fix or record every finding.
+6. Challenge: for changes to permissions, path confinement, shell execution, config trust, session persistence, providers or MCP, get an independent review. Use the `adversarial-reviewer` agent (`.claude/agents/adversarial-reviewer.md`) and give it the git range and the focus areas, not the author's rationale. Fix or record every finding with a regression test. Evidence that this pays off: four review rounds so far found 46 reproduced defects, 6 of them high severity, that the author's own tests had missed (see docs/progress.md).
 7. Integrate: branch → PR → `gh pr merge N --squash --auto`. The `main` ruleset requires every CI job to pass and has no bypass, so nothing (including doc-only changes) lands on `main` without green CI. Never merge with a red or pending check.
 8. Record: update backlog status and append to `docs/progress.md`.
 
