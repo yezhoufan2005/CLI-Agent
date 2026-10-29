@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# 容器内的会话驱动：在截止时间前反复启动全新的 headless Claude Code 会话。
+# 容器内的会话驱动：反复启动全新的 headless Claude Code 会话，直到所有者停止运行。
 set -uo pipefail
 
-HOURS="${AUTONOMY_HOURS:-12}"
 MODEL="${AUTONOMY_MODEL:-opus}"
 REPO="${AUTONOMY_REPO:?AUTONOMY_REPO is required}"
-MAX_IDLE="${AUTONOMY_MAX_IDLE_SESSIONS:-3}"
-MAX_FAILS="${AUTONOMY_MAX_FAILED_SESSIONS:-8}"
-MIN_SESSION_SECONDS="${AUTONOMY_MIN_SESSION_SECONDS:-600}"
+# 单个会话的挂起保护；到时只结束该会话，运行继续
+SESSION_HOURS="${AUTONOMY_SESSION_HOURS:-8}"
+# 连续这么多个会话没有改变任何 Git ref 后，每个会话前先冷却
+IDLE_BEFORE_COOLDOWN="${AUTONOMY_IDLE_BEFORE_COOLDOWN:-3}"
+IDLE_COOLDOWN_MINUTES="${AUTONOMY_IDLE_COOLDOWN_MINUTES:-60}"
 STATE_DIR=/home/node/.autonomy
 STOP_FILE="$STATE_DIR/STOP"
 
-START=$(date +%s)
-DEADLINE=$(( START + $(awk "BEGIN{printf \"%d\", $HOURS * 3600}") ))
+SESSION_SECONDS=$(awk "BEGIN{printf \"%d\", $SESSION_HOURS * 3600}")
 RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)
 LOG_DIR="$STATE_DIR/logs/$RUN_ID"
 mkdir -p "$LOG_DIR"
@@ -26,16 +26,22 @@ network_ok() {
     curl -sS -o /dev/null --max-time 15 https://api.github.com 2>/dev/null
 }
 
-# 断网期间阻塞等待，不消耗会话和失败次数；到截止时间或收到 STOP 时返回 1
+# 可被 STOP 打断的等待；收到 STOP 时返回 1
+pause() {
+  local until=$(( $(date +%s) + $1 ))
+  while [ "$(date +%s)" -lt "$until" ]; do
+    [ -f "$STOP_FILE" ] && return 1
+    sleep 10
+  done
+}
+
+# 断网期间阻塞等待，不消耗会话和失败次数；收到 STOP 时返回 1
 wait_for_network() {
   local delay=15
   network_ok && return 0
   log "network unreachable; waiting"
   while ! network_ok; do
-    if [ -f "$STOP_FILE" ] || [ $(( DEADLINE - $(date +%s) )) -lt "$MIN_SESSION_SECONDS" ]; then
-      return 1
-    fi
-    sleep "$delay"
+    pause "$delay" || return 1
     [ "$delay" -lt 300 ] && delay=$(( delay * 2 ))
   done
   log "network restored"
@@ -45,7 +51,7 @@ if [ -z "${GH_TOKEN:-}" ]; then
   log "GH_TOKEN is not set; refusing to start."
   exit 1
 fi
-wait_for_network || { log "network never came up; exiting"; exit 1; }
+wait_for_network || { log "stopped before the network came up"; exit 0; }
 gh auth setup-git >/dev/null
 # 卡住的 HTTP 传输 60 秒内低于 1KB/s 即中止，避免 git 无限挂起
 git config --global http.lowSpeedLimit 1000
@@ -91,26 +97,24 @@ pretty() {
 }
 
 PROMPT_TEMPLATE=$(cat /opt/autonomy/prompt.md)
-DEADLINE_TEXT="$(date -u -d "@$DEADLINE" '+%Y-%m-%d %H:%M UTC')"
-log "run $RUN_ID started; deadline $DEADLINE_TEXT; model $MODEL"
+log "run $RUN_ID started; runs until stopped; model $MODEL"
 
-session=0 idle=0 fails=0 reason="deadline reached"
+session=0 idle=0 fails=0
 while :; do
-  now=$(date +%s)
-  remaining=$(( DEADLINE - now ))
-  if [ -f "$STOP_FILE" ]; then reason="STOP file present"; break; fi
-  if [ "$remaining" -lt "$MIN_SESSION_SECONDS" ]; then break; fi
-  wait_for_network || continue
-  remaining=$(( DEADLINE - $(date +%s) ))
+  [ -f "$STOP_FILE" ] && break
+  if [ "$idle" -ge "$IDLE_BEFORE_COOLDOWN" ]; then
+    log "$idle consecutive sessions without new commits; cooling down ${IDLE_COOLDOWN_MINUTES} min"
+    pause $(( IDLE_COOLDOWN_MINUTES * 60 )) || break
+  fi
+  wait_for_network || break
 
   session=$(( session + 1 ))
   prompt="${PROMPT_TEMPLATE//\{\{SESSION\}\}/$session}"
-  prompt="${prompt//\{\{DEADLINE\}\}/$DEADLINE_TEXT}"
-  prompt="${prompt//\{\{REMAINING_MIN\}\}/$(( remaining / 60 ))}"
+  prompt="${prompt//\{\{IDLE\}\}/$idle}"
 
   before=$(refs_fingerprint)
-  log "session $session starting ($(( remaining / 60 )) min left)"
-  timeout --signal=TERM --kill-after=60 "$remaining" \
+  log "session $session starting"
+  timeout --signal=TERM --kill-after=60 "$SESSION_SECONDS" \
     claude -p "$prompt" \
       --dangerously-skip-permissions \
       --model "$MODEL" \
@@ -121,28 +125,27 @@ while :; do
   after=$(refs_fingerprint)
   log "session $session exited with code $code"
 
-  if [ "$code" -eq 124 ]; then break; fi
-  if [ "$code" -ne 0 ]; then
+  if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
+    log "session $session hit the ${SESSION_HOURS}h session limit; starting a fresh one"
+  elif [ "$code" -ne 0 ]; then
     if ! network_ok; then
       log "session $session failed while offline; not counted as a failure"
       continue
     fi
     fails=$(( fails + 1 ))
-    if [ "$fails" -ge "$MAX_FAILS" ]; then reason="$fails consecutive failed sessions"; break; fi
-    backoff=$(( 60 * (1 << (fails - 1)) )); [ "$backoff" -gt 900 ] && backoff=900
-    log "backing off ${backoff}s after failure $fails/$MAX_FAILS"
-    sleep "$backoff"
+    backoff=$(( 60 * (1 << (fails > 5 ? 5 : fails - 1)) )); [ "$backoff" -gt 900 ] && backoff=900
+    log "backing off ${backoff}s after $fails consecutive failure(s)"
+    pause "$backoff" || break
     continue
   fi
   fails=0
 
   if [ "$before" = "$after" ]; then
     idle=$(( idle + 1 ))
-    log "no new commits in session $session ($idle/$MAX_IDLE idle)"
-    if [ "$idle" -ge "$MAX_IDLE" ]; then reason="$idle consecutive sessions without new commits"; break; fi
+    log "no new commits in session $session ($idle consecutive)"
   else
     idle=0
   fi
 done
 
-log "run $RUN_ID finished after $session session(s): $reason"
+log "run $RUN_ID stopped by the owner after $session session(s)"

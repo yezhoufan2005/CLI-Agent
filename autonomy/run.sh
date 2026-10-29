@@ -6,7 +6,6 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IMAGE=cli-agent-autonomy
 CONTAINER=cli-agent-autonomy
 SECRETS_FILE="${AUTONOMY_SECRETS_FILE:-$HOME/.config/cli-agent-autonomy/secrets.env}"
-HOURS="${AUTONOMY_HOURS:-12}"
 
 die() { echo "error: $*" >&2; exit 1; }
 
@@ -76,18 +75,16 @@ running() {
 }
 
 docker_run_loop() {
-  local env_file="$1" seconds
-  seconds=$(awk "BEGIN{printf \"%d\", $HOURS * 3600}")
+  local env_file="$1"
   docker rm "$CONTAINER" >/dev/null 2>&1 || true
   docker run -d --init --name "$CONTAINER" \
     -v cli-agent-workspace:/workspace \
     -v cli-agent-home:/home/node \
     --env-file "$env_file" \
     -e AUTONOMY_REPO="$(repo_slug)" \
-    -e AUTONOMY_HOURS="$HOURS" \
     -e AUTONOMY_MODEL="${AUTONOMY_MODEL:-opus}" \
     "$IMAGE" \
-    timeout --kill-after=120 "$seconds" /opt/autonomy/loop.sh >/dev/null
+    /opt/autonomy/loop.sh >/dev/null
 }
 
 docker_smoke() {
@@ -110,7 +107,7 @@ case "${1:-help}" in
     running && die "a run is already in progress (./autonomy/run.sh status)"
     build
     with_env_file docker_run_loop
-    echo "started: $(repo_slug), up to ${HOURS}h. Follow with: ./autonomy/run.sh logs"
+    echo "started: $(repo_slug), runs until './autonomy/run.sh stop'. Follow with: ./autonomy/run.sh logs"
     ;;
   logs)
     docker logs -f "$CONTAINER"

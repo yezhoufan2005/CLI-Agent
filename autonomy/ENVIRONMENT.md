@@ -21,12 +21,22 @@ Outside that scope, nothing is authorized. In particular, do not:
 
 ## Run limits
 
-- Each run lasts at most **12 hours** of wall-clock time. The container entrypoint enforces the deadline and may kill the session without warning, so commit and push checkpoints regularly.
-- A run consists of consecutive headless sessions. Each new session starts with no memory of the previous one; repository and GitHub state are the only continuity.
-- There is no token budget and no stage-completion milestone. Keep delivering verified value until the deadline.
-- The driver ends the run early after 3 consecutive sessions that change no Git ref (local or on GitHub), or 8 consecutive sessions that fail while the network is up. Ending a session without any commit is treated as being stuck.
+- A run has no deadline. It continues until the owner stops it, which can happen at any moment and may kill the session without warning, so commit and push checkpoints regularly.
+- A run consists of consecutive headless sessions. Each new session starts with no memory of the previous one; repository and GitHub state are the only continuity. A single session is ended after 8 hours as a hang guard; the next session simply continues.
+- There is no token budget and no stage-completion milestone.
+- Failed sessions are retried with backoff (up to 15 minutes); the run never ends because of failures. After 3 consecutive sessions that change no Git ref (local or on GitHub), the driver waits 60 minutes before each further session until a session changes something.
 - The owner can stop a run at any time.
 - The session driver and kickoff prompt are baked into the container image from the owner's checkout (`autonomy/loop.sh`, `autonomy/prompt.md`). Editing them here takes effect only after the owner pulls and rebuilds. `autonomy/run.sh` and `autonomy/Dockerfile` run on the owner's host, so keep any change to them minimal and explain it in the PR.
+
+## When nothing is worth doing
+
+The run is open-ended, so returns will diminish. Work that exists only to produce commits (renames, reformatting, another review round of code already reviewed with no new risk, speculative features, benchmark reruns that cannot change a decision) costs money and adds regression risk. It is worse than doing nothing.
+
+Before starting a task, check that it addresses a recorded requirement, defect, risk, or measured weakness, and that its expected value justifies its cost. If no candidate passes:
+
+1. Look for value outside the code you already know: real-model end-to-end failures, new benchmarks or task types, install and first-use problems on a clean machine, upstream changes (model APIs, dependency releases, security advisories), and open issues.
+2. If still nothing passes, record that conclusion once in `docs/progress.md`: what you checked, the evidence, and what would make further work worthwhile (for example an owner decision, a new capability, or a new requirement). Open or update a `needs-human` issue only if an owner decision would unlock valuable work.
+3. Then end the session without further changes. If the latest progress entry already records this conclusion and nothing has changed since, end the session without committing anything. Idle sessions are an expected, acceptable outcome; the driver slows down on its own.
 
 ## Execution environment
 
