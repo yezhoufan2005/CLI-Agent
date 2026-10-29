@@ -2,6 +2,12 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — 0.6.0 released, first PyPI publish
+
+- https://github.com/yezhoufan2005/CLI-Agent/releases/tag/v0.6.0 was built from 7106526 after `main` CI passed. Both the `release` and `pypi` jobs succeeded, so the owner's Trusted Publishing setup works.
+- Verified (manual): `sha256sum -c SHA256SUMS` ok. PyPI `cli-agent-yzf` lists 0.6.0 (wheel + sdist). Clean-venv installs from the release wheel and from PyPI (`uv pip install cli-agent-yzf==0.6.0`) both report `cli-agent 0.6.0`. `doctor` from the PyPI install passes, and its model call replied.
+- Next: B-HAIKU-COST is the only open backlog item with a measured weakness.
+
 ## 2026-10-29 — Release 0.6.0 gate evidence
 
 | Gate | Evidence |
