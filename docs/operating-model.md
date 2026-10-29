@@ -33,5 +33,5 @@ Use these words precisely in progress notes and PRs:
 
 - Same approach failed twice → stop, write down the root-cause hypothesis, change approach.
 - Flaky network: retry with backoff; commit locally and push later. Not a blocker.
-- Before a session may be killed (deadline), commit and push; progress.md must say exactly where work stopped and what to do next.
+- Before a session may be killed (the owner can stop a run at any moment), commit and push; progress.md must say exactly where work stopped and what to do next.
 - Never leave `main` red. If CI on `main` fails, fixing it is the top priority.

@@ -5,8 +5,12 @@
 ## 工作方式
 
 - `run.sh start` 在宿主机上构建镜像，以后台方式启动容器 `cli-agent-autonomy`。
-- 容器内 [loop.sh](loop.sh) 在 12 小时截止前反复启动全新的 headless 会话（`claude -p --dangerously-skip-permissions`），每轮提示词见 [prompt.md](prompt.md)。每个会话都从仓库和 GitHub 状态恢复进度。
-- 运行会提前结束的情况：连续 3 个会话没有让任何 Git ref 变化，在网络正常的情况下连续 8 个会话失败，或者你执行了 `stop`。
+- 容器内 [loop.sh](loop.sh) 反复启动全新的 headless 会话（`claude -p --dangerously-skip-permissions`），直到你执行 `stop`，没有截止时间。每轮提示词见 [prompt.md](prompt.md)。每个会话都从仓库和 GitHub 状态恢复进度。
+- 运行不会自己结束：
+  - 会话失败会退避重试（1、2、4、8 分钟，之后每次 15 分钟），不会因失败次数退出。
+  - 单个会话超过 8 小时会被结束，作为挂起保护，接着开新会话（`AUTONOMY_SESSION_HOURS` 可改）。
+  - 连续 3 个会话没有让任何 Git ref 变化后，之后每个会话前先等 60 分钟，直到有会话产生新提交（`AUTONOMY_IDLE_BEFORE_COOLDOWN`、`AUTONOMY_IDLE_COOLDOWN_MINUTES` 可改）。这是为了 agent 认为没有值得做的事时不空烧费用。
+  - Docker Desktop 或 Mac 重启后容器不会自动恢复，需要重新 `start`。
 - 网络波动的处理分几层：
   - Claude Code 自己会重试 API 请求，容器里把重试次数调到了 20。
   - git 传输卡住 60 秒就中止；npm 下载会重试 5 次。
@@ -37,11 +41,11 @@
 
 | 命令 | 作用 |
 |---|---|
-| `./autonomy/run.sh start` | 开始一次运行（默认 12 小时，可用 `AUTONOMY_HOURS=2` 覆盖） |
+| `./autonomy/run.sh start` | 开始一次运行，持续到你停止为止 |
 | `./autonomy/run.sh logs` | 实时查看可读进度（💬 模型输出，🔧 工具调用） |
 | `./autonomy/run.sh status` | 容器状态和驱动日志末尾 |
-| `./autonomy/run.sh stop` | 优雅停止：当前会话做完后不再开新会话 |
-| `./autonomy/run.sh stop --now` | 立即终止 |
+| `./autonomy/run.sh stop` | 优雅停止：当前会话做完后不再开新会话。一个会话可能持续数小时 |
+| `./autonomy/run.sh stop --now` | 立即终止；未提交的改动留在卷里，下次运行的会话能看到 |
 | `./autonomy/run.sh shell` | 进容器查看现场；运行已结束时会开一个不带凭证的临时容器 |
 | `./autonomy/run.sh fetch-logs` | 把完整的 stream-json 日志拷到 `autonomy/logs/`（已加入 gitignore） |
 
