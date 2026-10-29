@@ -2,6 +2,11 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — 0.5.0 released
+
+- https://github.com/yezhoufan2005/CLI-Agent/releases/tag/v0.5.0 was built by the release workflow from 30422cd after `main` CI passed. Verified: downloaded the assets, `sha256sum -c` ok, clean-venv install reports `cli-agent 0.5.0`.
+- Session 2 of this run ended here (deadline 05:51 UTC). Next steps are in the gate-evidence entry below.
+
 ## 2026-10-29 — Exercism rerun on the 0.4.0+ prompt
 
 - Cross-check that the prompt changes (#53, #57) were not tuned to sympy only: Exercism Python, same 30 exercises (seed 7, exercism/python `6105f6d`), main at the file-tools rule.
