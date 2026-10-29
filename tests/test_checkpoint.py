@@ -251,3 +251,44 @@ def test_shell_only_prompts_are_evicted_before_file_changes(tmp_path: Path) -> N
     cps.begin("last")
     labels = [cp["label"] for cp in cps._load()]
     assert len(labels) == MAX_CHECKPOINTS and labels[0] == "edit app"
+
+
+def test_newest_shell_only_prompt_survives_the_cap(tmp_path: Path) -> None:
+    from cli_agent.checkpoint import MAX_CHECKPOINTS
+
+    ctx, cps = setup(tmp_path)
+    for i in range(MAX_CHECKPOINTS - 1):
+        cps.begin(f"edit {i}")
+        WriteFile().run({"path": f"f{i}.txt", "content": "x"}, ctx)
+    cps.begin("shell prompt")
+    cps.note_shell()
+    cps.begin("question")
+    report = Checkpoints(cps.path, ctx.root).undo()
+    assert report is not None and report.label == "shell prompt"
+
+
+def test_failed_undo_keeps_what_it_could_not_revert(tmp_path: Path) -> None:
+    import os
+
+    import pytest
+
+    ctx, cps = setup(tmp_path)
+    (ctx.root / "sub").mkdir()
+    (ctx.root / "a.txt").write_text("A0")
+    (ctx.root / "sub/b.txt").write_text("B0")
+    cps.begin("p")
+    for rel, text in (("a.txt", "A1"), ("sub/b.txt", "B1")):
+        ReadFile().run({"path": rel}, ctx)
+        WriteFile().run({"path": rel, "content": text}, ctx)
+    os.chmod(ctx.root / "sub", 0o500)
+    try:
+        if os.access(ctx.root / "sub", os.W_OK):
+            pytest.skip("running as root: directory permissions are not enforced")
+        with pytest.raises(OSError, match=r"reverted before the failure: a\.txt"):
+            cps.undo()
+    finally:
+        os.chmod(ctx.root / "sub", 0o700)
+    assert (ctx.root / "a.txt").read_text() == "A0"
+    report = cps.undo()  # the retry finishes the same prompt
+    assert report is not None and report.label == "p" and report.restored == ["sub/b.txt"]
+    assert (ctx.root / "sub/b.txt").read_text() == "B0"

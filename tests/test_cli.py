@@ -383,3 +383,16 @@ def test_queued_typeahead_follows_the_live_paste_rule(monkeypatch: pytest.Monkey
     queued = ["/mode read-only", "write g"]
     assert _read_prompt(queued) == ("/mode read-only", False)
     assert _read_prompt(queued) == ("write g", False)
+
+
+def test_typed_ahead_mode_lines_only_tighten() -> None:
+    from cli_agent.cli import _apply_typeahead_modes
+    from cli_agent.permissions import PermissionPolicy
+
+    policy = PermissionPolicy(mode="ask")
+    queued = ["also check the README", "/mode read-only"]
+    _apply_typeahead_modes(queued, policy)
+    assert policy.mode == "read-only" and queued == ["also check the README"]
+    queued = ["issue text:", "/mode auto", "fix it"]
+    _apply_typeahead_modes(queued, policy)
+    assert policy.mode == "read-only" and queued == ["issue text:", "fix it"]

@@ -4,6 +4,12 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Fixed (eighth review)
+- A `/mode` line inside input typed ahead during an approval question is applied before that input runs if it tightens the mode (e.g. `/mode read-only`); a loosening `/mode` from typed-ahead input is not applied and the user is told to retype it.
+- An `undo` that fails part-way keeps the files it could not revert, says which ones it did, and a retry finishes the same prompt.
+- `--resume` and `/resume` refuse a session file whose stored id differs from its file name, which would have overwritten the other session.
+- `/resume` escapes control characters in the title; a failed checkpoint start no longer records into the previous prompt's checkpoint.
+
 ### Fixed (seventh review)
 - A partly typed `y` (no Enter) before an approval question no longer becomes the answer when Enter is pressed at the question; partial input is discarded.
 - An unrecognized answer to an approval question now means no, instead of asking again, so leftover pasted lines can't cycle until one says `y`. Typed-ahead input is read until it has been quiet for 0.2 s.

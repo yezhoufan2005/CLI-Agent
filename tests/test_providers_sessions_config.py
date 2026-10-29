@@ -234,3 +234,11 @@ def test_context_chars_config(tmp_path: Path) -> None:
     f.write_text("context_chars = 10\n")
     with pytest.raises(ConfigError, match="context_chars"):
         load_config(f, environ={})
+
+
+def test_session_file_naming_another_id_is_refused(tmp_path: Path) -> None:
+    store = SessionStore(tmp_path)
+    store.save(Session(id="bbbbbb", cwd="/w", model="m"))
+    (store.dir / "aaaaaa.json").write_text((store.dir / "bbbbbb.json").read_text())
+    with pytest.raises(ValueError, match="different session id"):
+        store.load("aaaaaa")

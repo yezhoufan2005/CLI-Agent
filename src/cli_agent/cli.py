@@ -556,6 +556,32 @@ def _read_prompt(queued: list[str]) -> tuple[str, bool]:
     return "\n".join(lines).strip(), False
 
 
+def _apply_typeahead_modes(queued: list[str], policy: PermissionPolicy) -> None:
+    """Handle `/mode` lines inside typed-ahead text before that text is sent.
+
+    A stricter mode is applied at once, so `/mode read-only` typed during a run
+    covers the prompt typed with it. A looser mode is not applied from text the
+    user has not seen again (it may come from a paste); they can retype it.
+    """
+    if not queued or queued[0].lstrip().startswith("/"):
+        return  # a leading command is run normally, on its own
+    keep = []
+    for line in queued:
+        words = line.split()
+        if len(words) == 2 and words[0] == "/mode" and words[1] in MODES:
+            if MODES.index(words[1]) < MODES.index(policy.mode):
+                policy.mode = words[1]  # type: ignore[assignment]
+                print(f"mode is now {words[1]} (typed ahead)", file=sys.stderr)
+            else:
+                print(
+                    f"not applied from typed-ahead input: {line.strip()} (type it again)",
+                    file=sys.stderr,
+                )
+            continue
+        keep.append(line)
+    queued[:] = keep
+
+
 def _list_workspace_sessions(store: SessionStore, current: Session, limit: int = 10) -> None:
     mine = [s for s in store.list() if s.cwd == current.cwd]
     if not any(s.id == current.id for s in mine):
@@ -590,6 +616,7 @@ def _repl(
             print(file=sys.stderr)
             return EXIT_OK
         try:
+            _apply_typeahead_modes(queued, agent.policy)
             line, eof = _read_prompt(queued)
         except EOFError:
             print(file=sys.stderr)
@@ -637,7 +664,8 @@ def _repl(
                 )
                 continue
             session = other
-            print(f"now in session {session.id}: {session.title}", file=sys.stderr)
+            title = escape_controls(session.title, keep_newlines=False)
+            print(f"now in session {session.id}: {title}", file=sys.stderr)
             continue
         if line == "/usage":
             print(json.dumps(session.usage.to_dict()), file=sys.stderr)
