@@ -2,6 +2,19 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — SWE-bench seed 2; small UX and process items (PRs #45–#49)
+
+- SWE-bench Lite sympy, **seed 2** (a second sample of 20; it overlaps the seed-1 set), main at 0.3.0+:
+  - claude-sonnet-4-6: 13/20
+  - claude-haiku-4-5: 13/20
+
+  Reports are in `docs/bench/swebench-lite-sympy-seed2-*.json`.
+- Combined with seed 1 (v2): sonnet 27/40, haiku 28/40, i.e. about 68–70%. The two models are statistically indistinguishable on this subset with this harness. Treat ~2/3 resolved as the current level, not a precise number.
+- PR #45: README has a measured-results table and installs from the release.
+- PR #46: `.claude/agents/adversarial-reviewer.md` codifies the review process.
+- PR #47: `--resume` accepts unique id prefixes.
+- PR #48: B-PARALLEL dropped. In a real run, tools took 0.10 s against 9.7 s of model time.
+
 ## 2026-10-29 — 0.3.0 released
 
 - https://github.com/yezhoufan2005/CLI-Agent/releases/tag/v0.3.0 was built by the release workflow after `main` CI passed. Verified: downloaded the assets, `sha256sum -c` ok, clean-venv install reports `cli-agent 0.3.0`.
