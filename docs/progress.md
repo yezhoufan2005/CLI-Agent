@@ -2,6 +2,12 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Owner: PyPI publishing via Trusted Publishing (resolves #17)
+
+- Done by the owner between runs. The distribution is renamed `cli-agent-yzf` (`cli-agent` is taken on PyPI by another project); module `cli_agent`, command `cli-agent`, and config/session paths are unchanged. `release.yml` has a new `pypi` job (environment `pypi`, `id-token: write`) that uploads the sdist and wheel built by the `release` job. `autonomy/ENVIRONMENT.md` now authorizes this publish.
+- Verified: `scripts/check.sh` passes, `uv build` produces `cli_agent_yzf-0.5.0-*` and the wheel installs and runs `cli-agent --version`.
+- Not verified: the `pypi` job itself; it first runs on the next release tag. Check the PyPI page after that release, and follow `docs/release.md` § "PyPI publishing" if it fails.
+
 ## 2026-10-29 — Run 1, session 3: Ctrl-C during `/undo` lock wait (PR #73)
 
 - Confirmed the session-2 suspicion: Ctrl-C while `/undo` waited (up to 10 s) for another session's checkpoint lock left the REPL with exit 130. Now it prints "undo cancelled" and the REPL continues; SIGTERM/SIGHUP still exit. CI: `test_ctrl_c_during_undo_lock_wait_keeps_the_repl` (fails without the change; checked).

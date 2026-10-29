@@ -1,6 +1,6 @@
 # Release procedure
 
-Releases are GitHub Releases built by `.github/workflows/release.yml` from a `vX.Y.Z` tag. PyPI publishing is not automated (no credentials are available to the project; see the `needs-human` issue if one is open).
+Releases are built by `.github/workflows/release.yml` from a `vX.Y.Z` tag. One tag publishes both the GitHub Release and the PyPI package [`cli-agent-yzf`](https://pypi.org/project/cli-agent-yzf/) (the name `cli-agent` is taken on PyPI; the command is still `cli-agent`). A PyPI version cannot be uploaded twice, so never re-push or reuse a tag; fix forward with a new patch version.
 
 ## Steps
 
@@ -19,17 +19,18 @@ Releases are GitHub Releases built by `.github/workflows/release.yml` from a `vX
    - Runs `scripts/check.sh`.
    - Builds the sdist and wheel, and smoke-tests the wheel.
    - Publishes the Release with the artifacts, `SHA256SUMS`, and the CHANGELOG section.
-5. Verify the release by installing from it:
+   - The `pypi` job uploads the same sdist and wheel to PyPI.
+5. Verify both installs:
    ```bash
-   uv tool install https://github.com/yezhoufan2005/CLI-Agent/releases/download/vX.Y.Z/cli_agent-X.Y.Z-py3-none-any.whl
+   uv tool install https://github.com/yezhoufan2005/CLI-Agent/releases/download/vX.Y.Z/cli_agent_yzf-X.Y.Z-py3-none-any.whl
+   uv tool install cli-agent-yzf==X.Y.Z
    ```
 
-## Publishing to PyPI (single manual step, owner only)
+## PyPI publishing
 
-```bash
-gh release download vX.Y.Z -p '*.whl' -p '*.tar.gz' -D dist/
-uv publish dist/*        # needs a PyPI token: UV_PUBLISH_TOKEN
-```
+The `pypi` job uses [Trusted Publishing](https://docs.pypi.org/trusted-publishers/): PyPI trusts OIDC tokens from this repository's `release.yml` running in the GitHub environment `pypi`. No PyPI token exists in the repository or its secrets. Renaming `release.yml`, renaming the `pypi` environment, or moving the publish step to another job breaks publishing until the owner updates the publisher on PyPI.
+
+If the `pypi` job fails after the GitHub Release was created, fix the cause and re-run only that job from the Actions page (`gh run rerun RUN_ID --failed`). Do not delete and re-push the tag.
 
 ## Compatibility policy (0.x)
 

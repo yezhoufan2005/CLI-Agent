@@ -1,5 +1,5 @@
 [project]
-name = "cli-agent"
+name = "cli-agent-yzf"
 version = "0.5.0"
 description = "An autonomous coding agent for the terminal"
 readme = "README.md"
@@ -28,6 +28,10 @@ cli-agent = "cli_agent.cli:main"
 [build-system]
 requires = ["uv_build>=0.11.31,<0.12.0"]
 build-backend = "uv_build"
+
+# "cli-agent" is taken on PyPI; the distribution is "cli-agent-yzf", the module and command stay cli_agent / cli-agent
+[tool.uv.build-backend]
+module-name = "cli_agent"
 
 [dependency-groups]
 dev = [
