@@ -30,6 +30,6 @@ Pick the top `todo` whose dependencies are `done`. Add new items with a one-line
 | B-PROMPT-BENCH | P1 | done | Use kept SWE-bench transcripts to find agent-side failure causes and fix them in the system prompt | Seed 1+2 resolved counts and E2E recorded per change (docs/progress.md, 2026-10-29) |
 | B-SHELL-EDITS | P1 | done | Agent changes file contents through file tools, so diffs and undo cover them | Shell source edits 9/20 → 3/20 SWE-bench runs; E2E 11/11 |
 | B-LOCK-TIMEOUT | P2 | done | Checkpoint `flock` has no timeout; a stuck holder hangs file and shell tools until Ctrl-C | Test: a held lock makes the tool fail with a clear message within N s |
-| B-HAIKU-COST | P2 | todo | Haiku's input tokens rose ~50% with the 0.4.0 prompt (more turns, more scratch scripts) | Same SWE-bench seeds with equal or better resolved count and lower total input tokens |
+| B-HAIKU-COST | P2 | dropped | Haiku's input tokens rose ~50% with the 0.4.0 prompt (more turns, more scratch scripts) | Dropped 2026-10-29: the runs were served by claude-haiku-5.5 ($0.10/MTok input), so the 12M-token worst case costs about $1.20. The rise came with one more resolved instance per seed, and new SWE-bench runs to tune it would cost more than they save. Revisit if a user hits `max_session_tokens` |
 | B-SESSION-PICKER | P2 | done | `/sessions` and `/resume ID` in the REPL (a numbered pick was not added: unique id prefixes already work) | CI: `test_sessions_list_and_resume_inside_the_repl` |
 

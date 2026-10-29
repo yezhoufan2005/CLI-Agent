@@ -2,6 +2,17 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Release 0.7.0 gate evidence
+
+| Gate | Evidence |
+|---|---|
+| 1. CI green | `main` at 8018db1: all jobs green; the release workflow re-runs the gate on the tag |
+| 2. ACs | No new ACs. The changes since 0.6.0 (default model, MCP pipe close, pytest bump) are covered by the existing suite, which now also fails on warnings |
+| 3. E2E | `scripts/e2e.sh claude-sonnet-5-5` on the #82 branch (same code as 8018db1): `pass=11 fail=0` |
+| 4. No open `severity:high` | No open issues |
+| 5. Independent review | No security-relevant code changed since 0.6.0. #81 changes only MCP pipe cleanup; not reviewed separately |
+| 6. Wheel installs | Release workflow smoke test; verify the PyPI install after the tag |
+
 ## 2026-10-29 — Run 2, session 1: dependency audit, MCP fd leak, default model (PRs #80–#82)
 
 - PR #80: `pip-audit` on the lock file flagged pytest 8.4.2 (CVE-2025-71176, dev-only). Bumped to 9.2.0, and the audit is now clean. The runtime dependency httpx 0.28.1 has no advisories.
