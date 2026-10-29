@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Added
+- `--resume` accepts a unique prefix of a session id.
+
 ## 0.3.0 — 2026-10-29
 
 ### Added
