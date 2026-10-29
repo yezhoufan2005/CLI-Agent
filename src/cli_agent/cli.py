@@ -209,6 +209,11 @@ def cmd_undo(cps: Checkpoints) -> int:
         print(f"  deleted {rel} (the agent created it)")
     for rel in report.skipped:
         print(f"  skipped {rel} (changed since the agent wrote it; left as is)")
+    if report.shell_commands:
+        print(
+            f"note: {report.shell_commands} shell command(s) also ran during that prompt; "
+            "files they changed are not reverted (check `git status`)"
+        )
     return EXIT_OK
 
 

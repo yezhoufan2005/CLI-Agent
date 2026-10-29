@@ -137,3 +137,17 @@ def test_two_processes_keep_each_others_checkpoints(tmp_path: Path) -> None:
         labels.append(r.label)
     assert sorted(labels) == ["A: write x", "B: write y"]
     assert not (ctx.root / "x").exists() and not (ctx.root / "y").exists()
+
+
+def test_undo_reports_shell_commands_it_cannot_revert(tmp_path: Path) -> None:
+    from cli_agent.tools.shell import RunShell
+
+    ctx, cps = setup(tmp_path)
+    cps.begin("mixed")
+    WriteFile().run({"path": "a.txt", "content": "a"}, ctx)
+    RunShell().run({"command": "echo b > b.txt"}, ctx)
+    RunShell().run({"command": "true"}, ctx)
+    report = cps.undo()
+    assert report is not None and report.deleted == ["a.txt"]
+    assert report.shell_commands == 2
+    assert (ctx.root / "b.txt").exists()  # documented: shell changes stay

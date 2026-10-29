@@ -4,6 +4,10 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Changed
+- The system prompt tells the agent to change workspace files only with the file tools, not through shell commands, so every change is shown as a diff and can be undone.
+- `undo` says how many shell commands ran during the prompt it reverts, since their file changes are not tracked.
+
 ### Security
 - Input typed before an approval question appears (for example while a command runs) is discarded, so a typed-ahead `y` or Enter can no longer answer a question the user has not seen.
 

@@ -6,7 +6,8 @@ along with a hash of what the agent last wrote. ``undo`` restores the
 originals of the most recent checkpoint, but skips any file that changed since
 the agent wrote it, so it never discards the user's own later edits.
 
-Only write_file/edit_file are tracked; changes made by shell commands are not.
+Only write_file/edit_file are tracked; changes made by shell commands are not,
+but the number of shell commands is, so undo can say they ran.
 """
 
 from __future__ import annotations
@@ -57,6 +58,8 @@ class UndoReport:
     skipped: list[str] = field(default_factory=list)
     """Files changed after the agent wrote them; left alone."""
     label: str = ""
+    shell_commands: int = 0
+    """Shell commands run during the prompt; whatever they changed stays."""
 
 
 class Checkpoints:
@@ -114,6 +117,18 @@ class Checkpoints:
 
         self._update(add)
 
+    def note_shell(self) -> None:
+        """Count a shell command against the current prompt's checkpoint."""
+        if self._current is None:
+            return
+
+        def add(stack: list[dict[str, Any]]) -> None:
+            cp = next((c for c in stack if c.get("id") == self._current), None)
+            if cp is not None:
+                cp["shell"] = int(cp.get("shell", 0)) + 1
+
+        self._update(add)
+
     def undo(self) -> UndoReport | None:
         """Revert the most recent checkpoint that changed files; None if none."""
         found: list[dict[str, Any]] = []
@@ -133,7 +148,10 @@ class Checkpoints:
             return self._revert(found[0])
 
     def _revert(self, cp: dict[str, Any]) -> UndoReport:
-        report = UndoReport(label=cp["label"])
+        shell = cp.get("shell", 0)
+        report = UndoReport(
+            label=cp["label"], shell_commands=shell if isinstance(shell, int) else 0
+        )
         for rel, entry in sorted(cp["files"].items()):
             target = self.root / rel
             # Never follow a symlink (the user may have swapped one in since) and
