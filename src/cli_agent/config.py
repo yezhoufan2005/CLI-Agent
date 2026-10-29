@@ -17,7 +17,7 @@ from cli_agent.mcp import ServerConfig, parse_server_configs
 from cli_agent.permissions import MODES, Mode
 from cli_agent.sandbox import SANDBOX_MODES
 
-DEFAULT_MODEL = "claude-sonnet-4-6"
+DEFAULT_MODEL = "claude-sonnet-5-5"
 PROVIDERS = ("anthropic", "openai", "fake")
 
 
