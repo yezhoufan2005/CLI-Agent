@@ -13,11 +13,12 @@ import json
 import os
 import select
 import shutil
+import signal
 import sys
 from pathlib import Path
 
 from cli_agent import __version__, log
-from cli_agent.agent import Agent, RunResult
+from cli_agent.agent import Agent, RunResult, Terminated
 from cli_agent.checkpoint import Checkpoints
 from cli_agent.config import Config, ConfigError, load_config
 from cli_agent.mcp import MCPServer, start_servers
@@ -303,6 +304,19 @@ def cmd_doctor(cfg: Config) -> int:
     return EXIT_OK if ok else EXIT_ERROR
 
 
+def _terminate_cleanly() -> None:
+    """Turn SIGTERM/SIGHUP (terminal closed) into `Terminated`, so the running
+    command is killed, the session saved and undo's shell count written."""
+
+    def stop(signum: int, frame: object) -> None:
+        raise Terminated(signum)
+
+    for name in ("SIGTERM", "SIGHUP"):
+        sig = getattr(signal, name, None)
+        if sig is not None:
+            signal.signal(sig, stop)
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
@@ -316,6 +330,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_USAGE
     harden_process()
     drop_credentials_from_environ()
+    _terminate_cleanly()
     if args.debug_log:
         try:
             log.enable(args.debug_log)
@@ -410,6 +425,8 @@ def main(argv: list[str] | None = None) -> int:
             interactive_repl,
             servers,
         )
+    except Terminated as stop:
+        return 128 + int(stop.args[0]) if stop.args else EXIT_INTERRUPTED
     except KeyboardInterrupt:
         print(file=sys.stderr)
         return EXIT_INTERRUPTED
@@ -619,6 +636,8 @@ def _repl(
         except EOFError:
             print(file=sys.stderr)
             return EXIT_OK
+        except Terminated:
+            raise
         except KeyboardInterrupt:
             queued.clear()  # Ctrl-C drops typed-ahead input, as the terminal does
             print(file=sys.stderr)

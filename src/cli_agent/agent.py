@@ -15,6 +15,11 @@ from cli_agent.providers.base import Provider, ProviderError, RetryPolicy, with_
 from cli_agent.session import Session
 from cli_agent.tools import Tool, ToolContext, ToolError, ToolResult, spec_of
 
+
+class Terminated(KeyboardInterrupt):
+    """SIGTERM or SIGHUP. Cleans up like Ctrl-C, but ends the process, also in the REPL."""
+
+
 Approval = Literal["yes", "no", "always", "unattended"]
 """`unattended`: nobody can answer (no terminal), so the call is not run."""
 
@@ -188,9 +193,11 @@ class Agent:
                 results = [self._execute(call) for call in calls]
                 session.messages.append(Message(role="user", content=list(results)))
                 self.save(session)
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as stop:
             session.repair()
             self.save(session)
+            if isinstance(stop, Terminated):
+                raise
             return RunResult("interrupted", last_text, turns, "interrupted by user")
         finally:
             if self.ctx.checkpoints is not None:
