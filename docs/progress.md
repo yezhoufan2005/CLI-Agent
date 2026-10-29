@@ -2,11 +2,22 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Tenth (focused) review of #71: fixes (PR #72)
+
+| # | Sev | Finding | Status |
+|---|---|---|---|
+| 1 | med | A second SIGHUP during the shell kill skipped SIGKILL, leaving a TERM-ignoring command running | fixed: only the first signal raises. Repro `r2_double`: `late exists after 8s: False` |
+| 2 | med | A second signal while closing MCP servers gave a traceback, exit 1, orphaned server | fixed: same, and each server is closed even if another fails. Repro `r4_mcp`: no surviving server |
+| 3 | low | SIGTERM before `main`'s `try` (e.g. while reading stdin) gave a traceback | fixed: handler installed just before the guarded block; earlier, the default action applies (repro: exit -15, no traceback) |
+| 4 | low | `--json` runs ended without a `result` event on SIGTERM | fixed (CI: `test_sigterm_in_json_mode_still_emits_a_result_event`, which also sends a second SIGTERM) |
+
+Unverified: a second signal during the save inside `Agent.run` could leave a dangling tool_use on disk; `load`/`--resume` should call `repair` (check next session).
+
 ## 2026-10-29 — Clean exit on SIGTERM/SIGHUP (PR #71)
 
 - Fixes the review-7 #7 limitation and next-step 2 of the 0.5.0 entry. SIGTERM/SIGHUP raise `Terminated` (a `KeyboardInterrupt` subclass), so the existing Ctrl-C cleanup runs (kill the command's process group, repair and save the session, write checkpoint counts in `finally`), then the process exits with 128+signal even from the REPL.
 - CI: `test_sighup_kills_the_command_and_keeps_undo_count` (3 shell commands, SIGHUP during the third: exit 129, the `sleep 30; touch late` never finishes, undo reports 3 commands, session saved). Fails without the change.
-- Not independently reviewed yet (session deadline). Next session: review this change, then B-HAIKU-COST.
+- Reviewed in the entry above (four findings, all fixed). Next: B-HAIKU-COST.
 
 ## 2026-10-29 — 0.5.0 released
 
