@@ -2,6 +2,13 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Run 2, session 1: one process per session (PR #77)
+
+- Fixes the review suspicion "two REPLs on one session overwrite each other". Confirmed: each save rewrites the whole history, so the later saver dropped the other's turns. Each process now holds an `flock` on `sessions/ID.lock`; `--resume`, `--continue` and `/resume` refuse a session open in another live process. The lock is taken before loading, so a holder's last save is never overwritten by an older copy. New AC-R6.
+- CI: `test_a_session_open_elsewhere_is_not_resumed` and `test_resume_refuses_a_session_open_in_another_process` both fail without the change (checked); lock unit tests cover a read-only lock file, a claim racing a release, a lock that can't be created (warning, run continues), and release after an external `rm`.
+- Independent review (adversarial-reviewer, two passes, every finding reproduced): 1st pass, three low findings: a read-only lock file silently disabled locking; an external `rm` let a second process in; a `.lock` file per run. 2nd pass: after an external `rm`, the old holder's release deleted the new holder's file; `O_RDONLY` likely breaks flock on Linux NFS (not reproduced, from the man page). All fixed except the external `rm` itself, a known limitation (no cheap complete fix; the model can edit session files through the shell anyway). The reviewer's stress test (8 processes × 3000 claim/release cycles) found no overlap.
+- E2E on `main` at 561764a before this change: claude-sonnet-4-6 `pass=11 fail=0`, claude-haiku-4-5 `pass=11 fail=0`.
+
 ## 2026-10-29 — Owner: PyPI publishing via Trusted Publishing (resolves #17)
 
 - Done by the owner between runs. The distribution is renamed `cli-agent-yzf` (`cli-agent` is taken on PyPI by another project); module `cli_agent`, command `cli-agent`, and config/session paths are unchanged. `release.yml` has a new `pypi` job (environment `pypi`, `id-token: write`) that uploads the sdist and wheel built by the `release` job. `autonomy/ENVIRONMENT.md` now authorizes this publish.
