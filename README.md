@@ -9,7 +9,7 @@ Status: early (0.x). See [docs/progress.md](docs/progress.md) for what is verifi
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/) (or pip).
 
 ```bash
-uv tool install https://github.com/yezhoufan2005/CLI-Agent/releases/download/v0.3.0/cli_agent-0.3.0-py3-none-any.whl
+uv tool install https://github.com/yezhoufan2005/CLI-Agent/releases/download/v0.4.0/cli_agent-0.4.0-py3-none-any.whl
 # or the latest main:
 uv tool install git+https://github.com/yezhoufan2005/CLI-Agent
 # or, from a checkout:
@@ -122,7 +122,7 @@ Measured with real models; full method and caveats in [docs/progress.md](docs/pr
 |---|---|---|
 | Built-in E2E tasks (`scripts/e2e.sh`, 11 tasks) | 11/11 | 11/11 |
 | Exercism Python, 30 exercises, hidden tests (`scripts/bench.py`) | 27/30 | 27/30 |
-| SWE-bench Lite sympy, 2 samples of 20, Docker-free (`scripts/swebench_sympy.py`) | 27/40 | 28/40 |
+| SWE-bench Lite sympy, 2 samples of 20, Docker-free (`scripts/swebench_sympy.py`) | 29/40 | 30/40 |
 
 These are single runs on small samples, not official leaderboard numbers.
 

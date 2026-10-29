@@ -1,6 +1,6 @@
 [project]
 name = "cli-agent"
-version = "0.3.0"
+version = "0.4.0"
 description = "An autonomous coding agent for the terminal"
 readme = "README.md"
 authors = [
