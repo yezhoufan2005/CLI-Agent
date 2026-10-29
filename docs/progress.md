@@ -6,6 +6,7 @@ Newest entry first. Each entry: what changed, what was verified (with evidence),
 
 - Confirmed the session-2 suspicion: Ctrl-C while `/undo` waited (up to 10 s) for another session's checkpoint lock left the REPL with exit 130. Now it prints "undo cancelled" and the REPL continues; SIGTERM/SIGHUP still exit. CI: `test_ctrl_c_during_undo_lock_wait_keeps_the_repl` (fails without the change; checked).
 - Checked the PR #72 suspicion (dangling tool_use on disk after a second signal): not a defect. `Agent.run` calls `Session.repair` before every request, and it is the only code that sends history to the provider (the `doctor` ping uses a fresh message); covered by `test_session_repair_on_resume`.
+- Not verified on macOS: in CI the REPL printed nothing after `/undo` (no echo, no "undo cancelled") even with a 0.5 s wait before typing, so the test is skipped on darwin. Diagnose next session (is the lock path the same there? does the pty lose the input?).
 - Still open: two REPLs on one session overwrite each other. Next: B-HAIKU-COST.
 
 ## 2026-10-29 — Tenth (focused) review of #71: fixes (PR #72)
