@@ -308,8 +308,15 @@ def _terminate_cleanly() -> None:
     """Turn SIGTERM/SIGHUP (terminal closed) into `Terminated`, so the running
     command is killed, the session saved and undo's shell count written."""
 
+    fired = False
+
     def stop(signum: int, frame: object) -> None:
-        raise Terminated(signum)
+        nonlocal fired
+        # Only the first signal raises: closing a terminal often sends two, and a
+        # second one must not interrupt the cleanup the first one started.
+        if not fired:
+            fired = True
+            raise Terminated(signum)
 
     for name in ("SIGTERM", "SIGHUP"):
         sig = getattr(signal, name, None)
@@ -330,7 +337,6 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_USAGE
     harden_process()
     drop_credentials_from_environ()
-    _terminate_cleanly()
     if args.debug_log:
         try:
             log.enable(args.debug_log)
@@ -411,6 +417,9 @@ def main(argv: list[str] | None = None) -> int:
         if warning:
             ui.on_notice(warning)
     servers: list[MCPServer] = []
+    # Installed here, where every exit path below handles it; before this point
+    # the default action (exit at once, nothing to clean up yet) is right.
+    _terminate_cleanly()
     try:
         return _run(
             cfg,
@@ -426,13 +435,27 @@ def main(argv: list[str] | None = None) -> int:
             servers,
         )
     except Terminated as stop:
-        return 128 + int(stop.args[0]) if stop.args else EXIT_INTERRUPTED
+        code = 128 + int(stop.args[0]) if stop.args else EXIT_INTERRUPTED
+        if isinstance(ui, JsonUI):
+            ui.emit(
+                "result",
+                status="interrupted",
+                text="",
+                turns=0,
+                error=f"terminated by signal {stop.args[0] if stop.args else '?'}",
+                session_id=session.id,
+                usage=session.usage.to_dict(),
+            )
+        return code
     except KeyboardInterrupt:
         print(file=sys.stderr)
         return EXIT_INTERRUPTED
     finally:
         for server in servers:
-            server.close()
+            try:
+                server.close()
+            except Exception as err:  # noqa: BLE001 - close the others too
+                log.event("mcp_close_error", error=str(err)[:300])
 
 
 def _run(

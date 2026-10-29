@@ -421,3 +421,42 @@ def test_continue_skips_a_session_file_naming_another_id(tmp_path: Path) -> None
     assert json.loads((sessions / f"{sid}.json").read_text())["title"] != "the copy"
     listed = run_cli(tmp_path, [], "sessions").stdout
     assert listed.count(sid) == 1
+
+
+def test_sigterm_in_json_mode_still_emits_a_result_event(tmp_path: Path) -> None:
+    import signal
+    import time
+
+    work = tmp_path / "work"
+    work.mkdir()
+    (tmp_path / "config.toml").write_text('provider = "fake"\n')
+    script = [{"tool_calls": [{"name": "run_shell", "input": {"command": "sleep 30"}}]}]
+    (tmp_path / "script.json").write_text(json.dumps(script))
+    env = {
+        "PATH": os.environ["PATH"],
+        "HOME": str(tmp_path / "home"),
+        "XDG_STATE_HOME": str(tmp_path / "state"),
+        "CLI_AGENT_CONFIG": str(tmp_path / "config.toml"),
+        "CLI_AGENT_FAKE_SCRIPT": str(tmp_path / "script.json"),
+    }
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "cli_agent", "-C", str(work), "--mode", "auto", "--json", "go"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    assert proc.stdout is not None
+    line = proc.stdout.readline()
+    while '"tool_start"' not in line:
+        line = proc.stdout.readline()
+        assert line, "no tool_start event"
+    time.sleep(0.3)
+    proc.send_signal(signal.SIGTERM)
+    time.sleep(0.3)
+    proc.send_signal(signal.SIGTERM)  # a second signal must not break the cleanup
+    out, _ = proc.communicate(timeout=30)
+    assert proc.returncode == 128 + signal.SIGTERM
+    result = json.loads(out.strip().splitlines()[-1])
+    assert result["event"] == "result" and result["status"] == "interrupted"
