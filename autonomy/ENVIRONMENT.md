@@ -14,7 +14,7 @@ The owner grants full authority over **this repository** and **its GitHub reposi
 
 Outside that scope, nothing is authorized. In particular, do not:
 
-- Publish to external package registries (npm, PyPI, crates.io, Homebrew, container registries). No credentials for them exist. Prepare the release so publishing is a single documented step, and open a `needs-human` issue.
+- Publish to external package registries (npm, crates.io, Homebrew, container registries, or PyPI under any other name). The one exception: pushing a `vX.Y.Z` release tag publishes the PyPI project `cli-agent-yzf` through `.github/workflows/release.yml` (Trusted Publishing, no token). That is authorized; follow `docs/release.md`. For any other registry, prepare the release so publishing is a single documented step, and open a `needs-human` issue.
 - Create, modify, or access any other GitHub repository, organization, or account setting.
 - Make the repository private, rename, transfer, archive, or delete it.
 - Print, log, commit, or transmit credentials (`GH_TOKEN`, `ANTHROPIC_AUTH_TOKEN`, or any other secret) anywhere. **The repository is public**: issues, PRs, commit messages, CI logs, and release notes are world-readable.

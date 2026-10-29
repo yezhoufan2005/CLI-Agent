@@ -25,7 +25,7 @@ wheels = [
 ]
 
 [[package]]
-name = "cli-agent"
+name = "cli-agent-yzf"
 version = "0.5.0"
 source = { editable = "." }
 dependencies = [

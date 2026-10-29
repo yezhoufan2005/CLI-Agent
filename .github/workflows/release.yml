@@ -3,7 +3,8 @@ name: release
 # Push a tag vX.Y.Z whose version matches pyproject.toml. The workflow runs the
 # full quality gate, builds sdist + wheel, smoke-tests the wheel, and publishes
 # a GitHub Release with the artifacts and the matching CHANGELOG section.
-# Publishing to PyPI is deliberately not automated (no credentials; see docs/release.md).
+# The pypi job then uploads the same sdist + wheel to PyPI (cli-agent-yzf) via
+# Trusted Publishing (OIDC); no PyPI token is stored anywhere.
 
 on:
   push:
@@ -35,6 +36,13 @@ jobs:
           uv venv /tmp/v
           uv pip install --python /tmp/v/bin/python dist/*.whl
           /tmp/v/bin/cli-agent --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
       - name: Extract release notes
         run: ./scripts/release-notes.sh "${GITHUB_REF_NAME#v}" > /tmp/notes.md
       - name: Checksums
@@ -43,3 +51,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file /tmp/notes.md --verify-tag
+
+  # Only this job can mint an OIDC token. Its environment and the workflow file
+  # name must match the trusted publisher configured on PyPI.
+  pypi:
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/cli-agent-yzf/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
