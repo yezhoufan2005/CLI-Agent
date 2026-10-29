@@ -9,7 +9,7 @@ Status: early (0.x). See [docs/progress.md](docs/progress.md) for what is verifi
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/) (or pip).
 
 ```bash
-uv tool install https://github.com/yezhoufan2005/CLI-Agent/releases/download/v0.4.0/cli_agent-0.4.0-py3-none-any.whl
+uv tool install https://github.com/yezhoufan2005/CLI-Agent/releases/download/v0.5.0/cli_agent-0.5.0-py3-none-any.whl
 # or the latest main:
 uv tool install git+https://github.com/yezhoufan2005/CLI-Agent
 # or, from a checkout:
