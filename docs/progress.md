@@ -2,6 +2,16 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — SWE-bench rerun after fixes; CI on 3.14 (PRs #36–#40)
+
+- Full rerun of the same 20 SWE-bench Lite sympy instances (seed 1) on main after the max_tokens continuation fix (#36), the whitespace-tolerant edit fallback (#38) and the stream deadline (#39). Reports: `docs/bench/swebench-lite-sympy-seed1-*-v2.json`.
+  - claude-sonnet-4-6: **14/20** (was 12/20). Unresolved: 11897, 13177, 14308, 14817, 17630, 17655.
+  - claude-haiku-4-5: **15/20** (was 13/20). Unresolved: 11897, 13177, 13915, 14308, 17630.
+  - No run ended with status `max_tokens` this time.
+  - Caveat: n=20 and a single run per model, so ±2 resolved is within run-to-run noise. The harness itself undercounts by about 1/20 under load (see the gold-patch check above). Sonnet vs haiku is not separated.
+- PR #37: `doctor` checks bash, git, the state dir, the sandbox and MCP commands. PR #39: overall 15-minute stream deadline. PR #40: CI adds Python 3.14 on both OSes, and the ruleset now requires all 7 jobs.
+- Prompt caching: a raw request with an explicit `cache_control` block, sent twice through the dev proxy, returned no `cache_*` usage fields at all. So the proxy does not forward caching; our requests are well-formed per the API docs. The real API is untested from here (no direct key).
+
 ## 2026-10-28 — SWE-bench Lite (sympy subset), Docker-free (PR #35)
 
 - `scripts/swebench_sympy.py` runs SWE-bench Lite sympy instances without Docker:
