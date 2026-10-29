@@ -48,7 +48,7 @@ def test_view_full_content() -> None:
 def test_non_interactive_never_reads_input() -> None:
     inp = io.StringIO("y\n")
     ui = TerminalUI(interactive=False, out=io.StringIO(), err=io.StringIO(), inp=inp)
-    assert ui.approve(ToolUseBlock("t", "run_shell", {}), "$ x") == "no"
+    assert ui.approve(ToolUseBlock("t", "run_shell", {}), "$ x") == "unattended"
     assert inp.tell() == 0
 
 
@@ -56,7 +56,7 @@ def test_json_ui_events() -> None:
     out = io.StringIO()
     ui = JsonUI(out=out)
     ui.on_text("hi")
-    assert ui.approve(ToolUseBlock("t", "run_shell", {}), "$ x") == "no"
+    assert ui.approve(ToolUseBlock("t", "run_shell", {}), "$ x") == "unattended"
     events = [json.loads(line) for line in out.getvalue().splitlines()]
     assert [e["event"] for e in events] == ["text", "approval_denied"]
 

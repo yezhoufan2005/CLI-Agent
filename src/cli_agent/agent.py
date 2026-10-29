@@ -15,7 +15,8 @@ from cli_agent.providers.base import Provider, ProviderError, RetryPolicy, with_
 from cli_agent.session import Session
 from cli_agent.tools import Tool, ToolContext, ToolError, ToolResult, spec_of
 
-Approval = Literal["yes", "no", "always"]
+Approval = Literal["yes", "no", "always", "unattended"]
+"""`unattended`: nobody can answer (no terminal), so the call is not run."""
 
 # Rough context budget in characters (~4 chars/token). When the history grows
 # past it, the oldest tool results are elided; the newest turns are kept intact.
@@ -246,10 +247,22 @@ class Agent:
             return ToolResultBlock(call.id, f"permission denied: {verdict.reason}", True)
         if verdict.decision == "ask":
             answer = self.ui.approve(call, summary)
+            hint = self.policy.allow_hint(call.name, call.input)
+            if hint:
+                self.ui.on_notice(hint)
             if answer == "no":
                 return ToolResultBlock(
                     call.id,
-                    "the user declined this tool call; ask them how to proceed or try another way",
+                    "the user declined this tool call; ask them how to proceed or try another way"
+                    + (f". {hint}" if hint else ""),
+                    True,
+                )
+            if answer == "unattended":
+                return ToolResultBlock(
+                    call.id,
+                    "not run: this call needs the user's approval, and this run is "
+                    "non-interactive, so nobody can give it. Only calls the user's allow rules "
+                    "or permission mode permit can run" + (f". {hint}" if hint else "."),
                     True,
                 )
             if answer == "always":

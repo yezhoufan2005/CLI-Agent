@@ -171,7 +171,7 @@ class TerminalUI:
         line = escape_controls(summary, keep_newlines=False)
         if not self.interactive:
             self.on_notice(f"not approved (non-interactive): {line}")
-            return "no"
+            return "unattended"
         print(f"{self._yellow}? approve: {line}{self._reset}", file=self.err)
         self._show_call(call, full=False)
         if discard_typeahead(self.inp):
@@ -242,4 +242,4 @@ class JsonUI:
         self.emit(
             "approval_denied", id=call.id, name=call.name, summary=summary, reason="non-interactive"
         )
-        return "no"
+        return "unattended"

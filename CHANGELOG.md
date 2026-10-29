@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
+### Fixed
+- In non-interactive runs, a call that needed approval was reported to the model as "the user declined". It now says nobody can approve in this run. When a shell allow rule (e.g. `run_shell:pytest*`) matched the start of a command but not the whole line because of a pipe or redirection, the model and the user are told so; the policy itself is unchanged.
+
 ### Changed
 - The system prompt tells the agent to change workspace files only with the file tools, not through shell commands, so every change is shown as a diff and can be undone.
 - `undo` says how many shell commands ran during the prompt it reverts, since their file changes are not tracked.

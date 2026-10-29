@@ -323,3 +323,29 @@ def test_overflow_caused_by_max_tokens_does_not_elide(tmp_path: Path) -> None:
     )
     assert not is_context_overflow(err)
     assert is_context_overflow(ProviderError("HTTP 400: prompt is too long: 300000 tokens"))
+
+
+def test_unattended_approval_explains_and_hints_at_operator_rule(tmp_path: Path) -> None:
+    script = [
+        {"tool_calls": [{"name": "run_shell", "input": {"command": "python -V | tail -1"}}]},
+        {"text": "ok"},
+    ]
+    ui = RecordingUI(answers=["unattended"])
+    agent, provider = make_agent(tmp_path, script, mode="ask", ui=ui)
+    agent.policy.allow = ["run_shell:python*"]
+    agent.run(new_session(tmp_path), "go")
+    result = provider.requests[1].messages[-1].content[0]
+    assert isinstance(result, ToolResultBlock) and result.is_error
+    assert "non-interactive" in result.content and "declined" not in result.content
+    assert "'run_shell:python*'" in result.content and "shell operators" in result.content
+    assert any("shell operators" in text for kind, text in ui.events if kind == "notice")
+
+
+def test_operator_hint_only_when_a_rule_matches_the_first_command() -> None:
+    from cli_agent.permissions import operator_blocked_rules
+
+    rules = ["run_shell:pytest*", "read_file"]
+    assert operator_blocked_rules(rules, "pytest -q 2>&1 | tail -5") == ["run_shell:pytest*"]
+    assert operator_blocked_rules(rules, "pytest -q") == []  # no operators: rule applies
+    assert operator_blocked_rules(rules, "make test | tail") == []
+    assert operator_blocked_rules(rules, "curl x; pytest") == []

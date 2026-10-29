@@ -202,6 +202,23 @@ def _deny_matches(rule: str, tool_name: str, subject: str | None) -> bool:
     return fnmatch.fnmatchcase(subject, glob)
 
 
+def operator_blocked_rules(allow: list[str], command: str) -> list[str]:
+    """run_shell allow rules that match the command's first simple command but
+    not the whole line, because the line has shell operators (`| ; & > $` ...)."""
+    if not _SHELL_META.search(command):
+        return []
+    segments = shell_segments(command)
+    if not segments:
+        return []
+    first = " ".join(_words(segments[0]))
+    found = []
+    for rule in allow:
+        name, glob = _rule_parts(rule)
+        if name == "run_shell" and glob and fnmatch.fnmatchcase(first, glob):
+            found.append(rule)
+    return found
+
+
 @dataclass
 class Verdict:
     decision: Decision
@@ -217,6 +234,21 @@ class PermissionPolicy:
     """Workspace root, used to normalize path subjects before matching."""
     approved_commands: set[str] = field(default_factory=set)
     """Exact shell commands the user approved with "always" this session."""
+
+    def allow_hint(self, tool_name: str, args: dict[str, Any]) -> str:
+        """Why an allow rule the user probably meant to cover this call did not."""
+        if tool_name != "run_shell" or self.mode == "read-only":
+            return ""
+        command = call_subject(tool_name, args, self.root) or ""
+        rules = operator_blocked_rules(self.allow, command)
+        if not rules:
+            return ""
+        shown = ", ".join(repr(r) for r in rules)
+        return (
+            f"allow rule {shown} matched the start of this command, but shell allow rules "
+            "never match a command line with shell operators (| ; & > $ and similar). "
+            "The same command without them (e.g. no pipe or redirection) would match it"
+        )
 
     def check(self, tool_name: str, effect: str, args: dict[str, Any]) -> Verdict:
         subject = call_subject(tool_name, args, self.root)

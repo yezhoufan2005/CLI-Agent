@@ -2,6 +2,13 @@
 
 Newest entry first. Each entry: what changed, what was verified (with evidence), what is open, what to do next.
 
+## 2026-10-29 — Headless approvals explain allow-rule misses (PR #59)
+
+- Found by a fresh-user check of the 0.4.0 wheel (`uv tool install` from the release, `doctor`, one-shot fix in a scratch git repo with `--mode auto-edit --allow 'run_shell:python*' --allow 'run_shell:pytest*'`, stdin not a tty). The model ran `python -m pytest -q 2>&1 | tail -30`. Shell allow rules deliberately never match command lines with operators, so it needed approval. Nobody could approve, the model was told "the user declined", and it finished without running the tests (3/3 runs on 0.4.0).
+- Fix: `approve` returns `unattended` when there is no terminal, and the tool result says the run is non-interactive. When a `run_shell` allow rule matches the first simple command, the result and a notice name the rule and explain that operators prevent the match. Permission decisions are unchanged.
+- Verified (E2E-style, manual): the same scenario on the branch, 3/3 runs: the piped command was refused, then the model ran plain `python -m pytest -q`, which the rule allowed, and reported the passing test. CI: `test_unattended_approval_explains_and_hints_at_operator_rule`, `test_operator_hint_only_when_a_rule_matches_the_first_command`.
+- Also seen: `doctor` reports the dev proxy answering `claude-sonnet-4-6` requests as `claude-sonnet-5.5` and `claude-haiku-4-5` as `claude-haiku-5.5`. All benchmark numbers in this repo are labelled with the requested name; the model behind the proxy is whatever it maps that name to.
+
 ## 2026-10-29 — Cost of the 0.4.0 prompt; docs refresh
 
 - Cost check from the kept reports (input tokens summed over 20 instances; no prompt caching through the dev proxy, so every turn resends the history):
