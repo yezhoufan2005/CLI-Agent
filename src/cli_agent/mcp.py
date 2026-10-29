@@ -93,6 +93,8 @@ class MCPServer:
                 continue
             with contextlib.suppress(queue.Full):
                 self._replies.put(msg, timeout=5)
+        # Only this thread reads the pipe, so it closes it; at EOF nothing else will.
+        self.proc.stdout.close()
         with contextlib.suppress(queue.Full):
             self._replies.put(None, timeout=5)
 
