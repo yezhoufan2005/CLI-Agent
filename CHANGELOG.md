@@ -4,41 +4,29 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## Unreleased
 
-### Fixed (eighth review)
-- `--continue`, `sessions` and `/sessions` ignore a session file whose stored id differs from its file name (it was listed twice and `--continue` could overwrite the other session).
-- Empty checkpoints no longer count toward the 20-prompt undo limit, so a just-started prompt can't push out a file change; a typed-ahead loosening `/mode` is never applied, even as the first typed-ahead line.
-- A `/mode` line inside input typed ahead during an approval question is applied before that input runs if it tightens the mode (e.g. `/mode read-only`); a loosening `/mode` from typed-ahead input is not applied and the user is told to retype it.
-- An `undo` that fails part-way keeps the files it could not revert, says which ones it did, and a retry finishes the same prompt.
-- `--resume` and `/resume` refuse a session file whose stored id differs from its file name, which would have overwritten the other session.
-- `/resume` escapes control characters in the title; a failed checkpoint start no longer records into the previous prompt's checkpoint.
-
-### Fixed (seventh review)
-- A partly typed `y` (no Enter) before an approval question no longer becomes the answer when Enter is pressed at the question; partial input is discarded.
-- An unrecognized answer to an approval question now means no, instead of asking again, so leftover pasted lines can't cycle until one says `y`. Typed-ahead input is read until it has been quiet for 0.2 s.
-- Typed-ahead input kept for the REPL follows the same paste rule as live input (a `/mode` line inside a paste is text), and Ctrl-C discards it.
-- Prompts that only ran shell commands are dropped first when the 20-checkpoint undo limit is reached.
-- The allow-rule hint only appears when the plain command would actually be allowed (deny rules, `sudo`/`env`/`VAR=` prefixes are respected).
+## 0.5.0 — 2026-10-29
 
 ### Added
 - REPL: `/sessions` lists this workspace's sessions (the current one marked `*`), and `/resume ID` switches to one of them without restarting.
 
-### Fixed (lock timeout)
-- The undo-checkpoint lock waits at most 10 s. Before, a process holding it (for example a command the agent started that inherited it) hung every file tool until Ctrl-C. Now the write still happens and the result says undo will not cover it; `undo` itself fails with exit 1 and a clear message.
-
-### Fixed (sixth review)
-- In the REPL, input typed before an approval question (for example `/mode read-only` while a command runs) is kept and handled at the next prompt instead of being thrown away; it still never answers the question. One-shot runs drop it and say what was dropped.
-- `undo` on a prompt that changed files only through shell commands now says so and stops, instead of saying "nothing to undo" or silently reverting an older prompt.
-- A failure to record the shell-command count (full disk, read-only state dir) no longer prevents the command from running; a tampered count is ignored. The count is written once per prompt instead of on every command.
-
-### Fixed
-- In non-interactive runs, a call that needed approval was reported to the model as "the user declined". It now says nobody can approve in this run. When a shell allow rule (e.g. `run_shell:pytest*`) matched the start of a command but not the whole line because of a pipe or redirection, the model and the user are told so; the policy itself is unchanged.
-
 ### Changed
-- The system prompt tells the agent to change workspace files only with the file tools, not through shell commands, so every change is shown as a diff and can be undone.
-- `undo` says how many shell commands ran during the prompt it reverts, since their file changes are not tracked.
+- The system prompt tells the agent to change file contents only with the file tools, not through shell commands, so every change is shown as a diff and can be undone. Deletes, moves and commands the user asks for still use the shell.
+- `undo` says how many shell commands ran during the prompt it reverts, and reports a prompt that changed files only through the shell instead of skipping it. Shell-only prompts are dropped first when the 20-prompt limit is reached; empty prompts don't count toward it.
+- An answer to an approval question other than y/n/a/v (or Enter) now means no, instead of asking again.
 
 ### Security
-- Input typed before an approval question appears (for example while a command runs) is discarded, so a typed-ahead `y` or Enter can no longer answer a question the user has not seen.
+- Input typed before an approval question appears (while a command runs, or a partly typed `y` without Enter) can no longer answer that question. In the REPL that input is kept for the next prompt; a typed-ahead `/mode` that tightens permissions is applied before it, and one that loosens them is never applied from typed-ahead input. One-shot runs drop it and say what was dropped. Ctrl-C discards it.
+- `--resume`, `/resume`, `--continue` and session listings ignore or refuse a session file whose stored id differs from its file name, which could overwrite another session.
+
+### Fixed
+- In non-interactive runs, a call that needed approval was reported to the model as "the user declined". It now says nobody can approve in this run, and names a shell allow rule (e.g. `run_shell:pytest*`) that matched the start of the command but not the whole line because of a pipe or redirection, if the plain command would be allowed. The policy itself is unchanged.
+- The undo-checkpoint lock waits at most 10 s instead of forever; a write whose checkpoint can't be recorded still happens and says undo won't cover it.
+- An `undo` that fails part-way keeps what it could not revert, lists what it did, and a retry finishes the same prompt.
+- A failure to record shell-command counts no longer blocks the command; tampered counts are ignored; counts are no longer written on every command.
+
+### Notes
+- Measured on this release: E2E 11/11 with claude-sonnet-4-6 and claude-haiku-4-5; Exercism Python (30, hidden tests) 28/30 and 26/30; SWE-bench Lite sympy seed 1 with sonnet 15/20.
+- Known limitation: if the process is killed (SIGHUP) within a second of several shell commands, undo may undercount them.
 
 ## 0.4.0 — 2026-10-29
 
